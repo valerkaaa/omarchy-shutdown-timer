@@ -470,6 +470,13 @@ trap 'exit 0' INT TERM
 drain_control
 
 # ---------- main loop ----------
+#
+# `last_tick` measures the gap between iterations. During suspend the process
+# is frozen, so on resume the gap is seconds-to-hours instead of ~1 s — that
+# is the signal that the machine just woke up, used below to give a visible
+# countdown window instead of firing into a black screen.
+
+last_tick=$EPOCHSECONDS
 
 while true; do
   reload_settings
@@ -497,11 +504,22 @@ while true; do
   drain_control
   read_state
 
+  now=$EPOCHSECONDS
+  loop_gap=$((now - last_tick)); last_tick=$now
+
   case "$status" in
     ACTIVE)
-      now=$EPOCHSECONDS
       time_left=$((target_time - now))
       if (( time_left <= 0 )); then
+        if (( loop_gap >= 5 )); then
+          # the deadline passed while the machine was asleep: show the
+          # countdown window instead of firing into a just-woken screen
+          set_state "COUNTDOWN" "$action" "$overlay_seconds" "$((now + overlay_seconds))" "$mode" "$now" "$snooze_count" ""
+          announced_early=true; announced_countdown=true
+          summon_overlay
+          log "deadline passed during sleep (gap ${loop_gap}s) — ${overlay_seconds}s window"
+          continue
+        fi
         # conditions (TZ 9.4) — checked once, right before acting
         local_action=$(battery_guard_should_swap "$action")
         if [[ "$local_action" != "$action" ]]; then
@@ -540,10 +558,15 @@ while true; do
       fi
       ;;
     COUNTDOWN|COUNTDOWN_SCHED)
-      now=$EPOCHSECONDS
       time_left=$((target_time - now))
       (( time_left < 0 )) && time_left=0
       if (( time_left <= 0 )); then
+        if (( loop_gap >= 5 )); then
+          set_state "$status" "$action" "$overlay_seconds" "$((now + overlay_seconds))" "$mode" "$now" "$snooze_count" ""
+          summon_overlay
+          log "countdown slept through (gap ${loop_gap}s) — ${overlay_seconds}s window"
+          continue
+        fi
         local_action=$(battery_guard_should_swap "$action")
         append_history "executed" "$local_action"
         log "firing $local_action (from $status)"

@@ -28,7 +28,11 @@ Panel {
   readonly property bool vertical: bar ? bar.vertical : false
   readonly property color foreground: bar ? bar.barForeground : Commons.Color.foreground
   readonly property color urgent: bar ? bar.urgent : Commons.Color.urgent
-  readonly property color accent: bar ? (bar.accent || foreground) : foreground
+  // The bar API has no `accent` in this shell build (`bar.accent` is
+  // undefined), so a fallback on it lands on `foreground` and the ≤5 min
+  // "warning" step of the ladder becomes invisible. Fall back to the theme
+  // accent instead.
+  readonly property color accent: (bar && bar.accent) ? bar.accent : Commons.Color.accent
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
 
   // Popup surface + text, contrast-checked (TZ 12). A theme may pair a warm
@@ -520,7 +524,10 @@ Panel {
           button: Math.round(button.implicitWidth) + "x" + Math.round(button.implicitHeight),
           icon: Math.round(heroIcon.iconSize),
           labelVisible: timeLabel.visible,
-          labelWidth: Math.round(timeLabel.implicitWidth)
+          labelWidth: Math.round(timeLabel.implicitWidth),
+          barColor: String(root.barColor),
+          urgentColor: String(root.urgent),
+          accentColor: String(root.accent)
         },
         popup: {
           open: root.opened,

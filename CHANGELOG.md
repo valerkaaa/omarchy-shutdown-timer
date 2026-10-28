@@ -48,6 +48,9 @@ restarts, and the whole plugin speaks two languages.
 
 ### Fixed
 
+- A deadline that passes while the machine is suspended now opens the
+  countdown window on wake instead of firing into a black screen.
+
 - State is restored after `kill -9` — an overdue timer opens the countdown
   window instead of firing silently.
 - `TERM` now actually terminates the daemon (the handler used to fall back
