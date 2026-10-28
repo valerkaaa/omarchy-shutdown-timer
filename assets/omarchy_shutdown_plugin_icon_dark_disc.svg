@@ -1,17 +1,26 @@
-<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Omarchy Shutdown Plugin icon">
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Shutdown timer plugin icon">
   <defs>
-    <linearGradient id="grad" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" style="stop-color:#0b5f75;" />
-      <stop offset="100%" style="stop-color:#0a2a54;" />
+    <linearGradient id="face" x1="0.15" y1="0" x2="0.85" y2="1">
+      <stop offset="0%" stop-color="#2ee6cf"/>
+      <stop offset="52%" stop-color="#1f7ae0"/>
+      <stop offset="100%" stop-color="#16307a"/>
     </linearGradient>
+    <radialGradient id="sheen" cx="0.3" cy="0.12" r="0.85">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.34"/>
+      <stop offset="55%" stop-color="#ffffff" stop-opacity="0.05"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="tileClip"><path d="M 256.0 24.0 a 232.0 232.0 0 1 0 0.1 0 z"/></clipPath>
   </defs>
-  <circle cx="256" cy="256" r="200" fill="url(#grad)" stroke="none" />
-  <circle cx="256" cy="256" r="110" fill="none" stroke="#ffffff" stroke-width="22" stroke-linecap="round"/>
-  <line x1="256" y1="56" x2="256" y2="200" stroke="#ffffff" stroke-width="22" stroke-linecap="round"/>
-  <g fill="#ffffff">
-    <rect x="60" y="210" width="120" height="60" rx="12" ry="12"/>
-    <rect x="178" y="232" width="12" height="40" rx="2"/>
-    <rect x="194" y="232" width="12" height="40" rx="2"/>
+  <circle cx="256.0" cy="256.0" r="232.0" fill="url(#face)"/><circle cx="256.0" cy="256.0" r="232.0" fill="none" stroke="#ffffff" stroke-opacity="0.28" stroke-width="3"/>
+  <g clip-path="url(#tileClip)">
+    <rect x="24" y="24" width="464" height="464" fill="url(#sheen)"/>
   </g>
-  <line x1="178" y1="256" x2="144" y2="256" stroke="#ffffff" stroke-width="8" />
+  <g fill="none" stroke="#ffffff" stroke-width="30" stroke-linecap="round">
+    <path d="M 322.5 161.0 A 116 116 0 1 1 189.5 161.0"/>
+  </g>
+  <!-- stem: from one ring-radius above the ring's top edge to just past the
+       centre, exactly as the canonical 24-unit power path has it (3 → 13) -->
+  <path d="M 256.0 126.0 V 272.0" fill="none" stroke="#ffffff"
+        stroke-width="30" stroke-linecap="round"/>
 </svg>

@@ -4,6 +4,24 @@ All notable changes to this plugin are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/), and the
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.1.0] — 2026-10-28
+
+Icon pass: the mark is rebuilt as a stroked path and the store icons get proper
+corners.
+
+### Changed
+
+- **Bar mark** is a single stroked ring + stem with round caps instead of four
+  stacked copies (shadow, two bevels, gradient body). The copies blurred into
+  each other at a 14 px slot — the ring's counter closed up and the mark read as
+  a smudge next to the crisp glyphs either side of it. One draw per state now,
+  and the stroke weight scales with the slot so it never goes hairline or fat.
+- **Store icons**: squircle corners (30 % of the side) instead of a nearly
+  square 8 %, a brighter three-stop gradient and a rounded, thicker power mark,
+  so the tile still reads at the ~48 px the store renders it at.
+- Icons moved out of the fully dimmed state: the mark draws at full strength,
+  which is what made it look washed out beside its neighbours.
+
 ## [2.0.0] — 2026-10-28
 
 Reliability release: the timer can now always be cancelled, state survives

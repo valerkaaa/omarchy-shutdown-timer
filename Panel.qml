@@ -26,6 +26,7 @@ Panel {
 
   // ---------- theme ----------
   readonly property bool vertical: bar ? bar.vertical : false
+  readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property color foreground: bar ? bar.barForeground : Commons.Color.foreground
   readonly property color urgent: bar ? bar.urgent : Commons.Color.urgent
   // The bar API has no `accent` in this shell build (`bar.accent` is
@@ -33,7 +34,6 @@ Panel {
   // "warning" step of the ladder becomes invisible. Fall back to the theme
   // accent instead.
   readonly property color accent: (bar && bar.accent) ? bar.accent : Commons.Color.accent
-  readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
 
   // Popup surface + text, contrast-checked (TZ 12). A theme may pair a warm
   // red with a warm light surface and land just under 4.5:1; readableOn()
@@ -563,7 +563,6 @@ Panel {
     if (service.status === "ACTIVE") return "active"
     return "idle"
   }
-  readonly property real iconOpacity: service.status === "IDLE" ? 0.55 : 1.0
 
   BarIconButton {
     id: button
@@ -581,13 +580,13 @@ Panel {
     iconComponent: Component {
       TimerIcon {
         anchors.centerIn: parent
-        // A little larger than the plain bar glyph: the raised edges need a
-        // couple of pixels of headroom to read as depth rather than noise.
-        iconSize: Style.bar.iconFont + Style.space(3)
+        // Same optical size as the neighbouring balance glyph: a thin ring
+        // needs the height to keep its counter open, and at 13 px the mark
+        // collapses into a star.
+        iconSize: Style.font.display
         reducedMotion: service.reducedMotion
         color: root.barColor
         variant: root.iconVariant
-        opacity: root.iconOpacity
       }
     }
 
@@ -719,7 +718,6 @@ Panel {
             anchors.verticalCenter: parent.verticalCenter
             color: service.status === "IDLE" ? root.foreground : root.barColor
             variant: root.iconVariant
-            opacity: service.status === "IDLE" ? 0.6 : 1.0
           }
 
           Row {
