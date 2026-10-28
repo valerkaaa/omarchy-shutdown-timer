@@ -143,7 +143,7 @@ Panel {
 
   function sectionCount(section) {
     if (section === "presets") return quickPresets.length
-    if (section === "advanced") return 3
+    if (section === "advanced") return 4
     if (section === "schedules") return scheduleRows.length
     if (section === "hero") return 3
     return 1
@@ -211,9 +211,13 @@ Panel {
       var row = scheduleRows[focusIndex]
       if (row) { service.scheduleRemove(row.id); Qt.callLater(function() { root.loadSchedules() }) }
     } else if (focusSection === "advanced") {
-      var keys = ["batteryGuard", "quiet", "waitForInhibitors"]
-      var ons = [service.batteryGuard, service.quiet, service.waitForInhibitors]
-      if (keys[focusIndex]) toggleSetting(keys[focusIndex], !ons[focusIndex])
+      if (focusIndex === 3) {
+        service.setOverride(service.overrideCommand === "" ? "echo" : "off")
+      } else {
+        var keys = ["batteryGuard", "quiet", "waitForInhibitors"]
+        var ons = [service.batteryGuard, service.quiet, service.waitForInhibitors]
+        if (keys[focusIndex]) toggleSetting(keys[focusIndex], !ons[focusIndex])
+      }
     } else if (focusSection === "launch") {
       startTimer()
     } else if (focusSection === "reset") {
@@ -502,7 +506,8 @@ Panel {
         selectedAction: root.selectedAction,
         customMinutes: root.customMinutes,
         timeModeAbsolute: root.timeModeAbsolute,
-        repeatMode: root.repeatMode
+        repeatMode: root.repeatMode,
+        overrideCommand: service.overrideCommand
       })
     }
 
@@ -1104,6 +1109,46 @@ Panel {
                 }
               }
             }
+          }
+
+          // Dry run lives beside the toggles but is not a shell.json setting —
+          // it is a file the daemon reads at firing time.
+          Row {
+            width: parent.width
+            spacing: Style.space(8)
+            readonly property bool hot: root.cursorActive && root.focusSection === "advanced" && root.focusIndex === 3
+
+            MouseArea {
+              width: parent.width
+              height: Style.spacing.controlHeight
+              hoverEnabled: true
+              cursorShape: Qt.PointingHandCursor
+              onClicked: service.setOverride(service.overrideCommand === "" ? "echo" : "off")
+
+              Text {
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.leftMargin: parent.parent.hot ? Style.space(2) : 0
+                width: parent.width
+                textFormat: Text.PlainText
+                text: (service.overrideCommand !== "" ? root.glyphCheck + "  " : "     ") + root.tr("adv.dryRun")
+                color: service.overrideCommand !== "" ? root.popupAccent : (parent.parent.hot ? root.popupAccent : root.popupText)
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.bodySmall
+                elide: Text.ElideRight
+              }
+            }
+          }
+
+          Text {
+            width: parent.width
+            visible: service.overrideCommand !== ""
+            textFormat: Text.PlainText
+            text: root.tr("adv.dryRunHint") + " (" + service.overrideCommand + ")"
+            color: root.popupText
+            opacity: 0.6
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
           }
 
           Text {

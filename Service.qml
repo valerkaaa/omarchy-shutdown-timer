@@ -78,6 +78,19 @@ Item {
     return Model.t(key, language, args)
   }
 
+  // ---------- dry run (live) ----------
+  // The daemon reads <state>/action-override on every firing; surface the same
+  // file here so the UI can say "the PC will not actually power off".
+  property string overrideCommand: ""
+  FileView {
+    path: root.stateDir + "/action-override"
+    watchChanges: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: root.overrideCommand = String(text() || "").trim()
+    onLoadFailed: root.overrideCommand = ""
+  }
+
   // ---------- paths ----------
   readonly property string pluginDir: String(Qt.resolvedUrl("control.sh")).replace(/^file:\/\//, "").replace(/\/control\.sh$/, "")
   readonly property string controlPath: pluginDir + "/control.sh"
@@ -193,6 +206,18 @@ Item {
 
   function reset() {
     sendCommand("reset")
+  }
+
+  function setOverride(cmd) {
+    overrideProc.command = ["bash", controlPath, "override", cmd]
+    overrideProc.running = true
+  }
+
+  Process {
+    id: overrideProc
+    running: false
+    stdout: StdioCollector { waitForEnd: true }
+    stderr: StdioCollector { waitForEnd: true }
   }
 
   function scheduleAdd(hhmm, days, act) {

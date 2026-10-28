@@ -93,6 +93,9 @@ cd ~/.config/omarchy/plugins/honor.shutdown-timer
 ./control.sh schedule list
 ./control.sh schedule remove <id>
 ./control.sh history
+./control.sh override echo   # dry run: firings are logged, PC stays on
+./control.sh override off    # back to real power actions
+./control.sh override        # show the current mode
 ```
 
 ## Settings
@@ -112,6 +115,12 @@ cd ~/.config/omarchy/plugins/honor.shutdown-timer
 | `waitForInhibitors` | `false` | Wait until inhibitors clear before firing. |
 | `tickSound` | `false` | Tick once per second inside the countdown. |
 | `reducedMotion` | `false` | Static icon, no progress-bar easing. |
+
+The **dry run** switch is not a setting but a file
+(`<state>/action-override`): while it holds a command, the daemon runs
+`<command> <action>` instead of the power command. Toggle it from the menu
+(*Advanced → Dry run*) or with `control.sh override echo|off`. Handy to let a
+1-minute timer actually reach zero without powering the machine off.
 
 ```bash
 omarchy bar set honor.shutdown-timer language ru

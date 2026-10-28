@@ -13,6 +13,7 @@
 #   control.sh schedule list | remove <id>
 #   control.sh history [--json]            последние запуски
 #   control.sh ensure | daemon-stop
+#   control.sh override [cmd|off]          сухой прогон: не выключать ПК
 #   control.sh send <raw>                  произвольная команда демону
 #   control.sh get-state                   сырой state.json
 #
@@ -26,6 +27,7 @@ STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/plugins/shutdown-timer"
 mkdir -p "$STATE_DIR"
 
 STATE_FILE="$STATE_DIR/state.json"
+OVERRIDE_FILE="$STATE_DIR/action-override"
 CONTROL_FILE="$STATE_DIR/control"
 FIFO="$STATE_DIR/wake"
 PID_FILE="$STATE_DIR/daemon.pid"
@@ -67,6 +69,24 @@ daemon_stop() {
   else
     echo "daemon not running"
   fi
+}
+
+# ---------- dry run ----------
+
+cmd_override() { # [cmd|off|status]
+  local want="${1:-status}"
+  case "$want" in
+    status|"")
+      [[ -s "$OVERRIDE_FILE" ]] && echo "override: $(<"$OVERRIDE_FILE") <action>" || echo "override: off (real power actions)"
+      ;;
+    off|none|real)
+      rm -f "$OVERRIDE_FILE"; echo "override off — power actions will really run"
+      ;;
+    *)
+      printf '%s\n' "$want" > "$OVERRIDE_FILE"
+      echo "override on — power actions will run as: $want <action>"
+      ;;
+  esac
 }
 
 # ---------- state ----------
@@ -294,6 +314,7 @@ main() {
   case "$subcmd" in
     ensure)      ensure_daemon ;;
     daemon-stop) daemon_stop ;;
+    override)    cmd_override "${1:-status}" ;;
     send)        send_command "${1:? send <cmd>}" ;;
     get-state)   get_state ;;
     set)         cmd_set "$@" ;;

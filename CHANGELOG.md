@@ -31,6 +31,9 @@ restarts, and the whole plugin speaks two languages.
   `debugCursor` IPC probe for it.
 - Contrast guard: popup/overlay text auto-clears 4.5:1 on any theme.
 - `reducedMotion` setting for the pulsing icon and progress easing.
+- **Dry run / override**: a live switch (`control.sh override`, or the popup
+  toggle) that logs the action instead of running it, so an end-to-end firing
+  no longer powers the machine off. Covered by `tests/test_override.sh`.
 - Test suite in `tests/` (state machine, cancel paths, absolute time,
   schedules, daemon recovery, performance budgets).
 

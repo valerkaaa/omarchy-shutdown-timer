@@ -35,6 +35,11 @@ NOTIFY_SEND="${OMARCHY_BIN}/bin/omarchy-notification-send"
 NOTIFICATIONS_STATE="$HOME/.local/state/omarchy/notifications.json"
 
 ACTION_OVERRIDE="${ACTION_OVERRIDE:-}"
+# Live dry-run switch: when this file is non-empty, the daemon logs the action
+# and runs `<file contents> <action>` instead of the real power command. Set by
+# `control.sh override`; unlike ACTION_OVERRIDE it does not need a restart, so
+# an E2E can exercise a real firing without powering the machine off.
+OVERRIDE_FILE="$STATE_DIR/action-override"
 
 log() { printf '%s %s\n' "$(date '+%F %T')" "$*" >> "$LOG_FILE"; }
 
@@ -265,9 +270,11 @@ send_notification() { # urgency title body
 }
 
 do_action() {
-  local act="$1"
-  if [[ -n "$ACTION_OVERRIDE" ]]; then
-    $ACTION_OVERRIDE "$act" >>"$LOG_FILE" 2>&1 || true
+  local act="$1" override="$ACTION_OVERRIDE"
+  [[ -s "$OVERRIDE_FILE" ]] && override="$(<"$OVERRIDE_FILE")"
+  if [[ -n "$override" ]]; then
+    $override "$act" >>"$LOG_FILE" 2>&1 || true
+    log "action $act executed via override: $override"
     return 0
   fi
   case "$act" in
