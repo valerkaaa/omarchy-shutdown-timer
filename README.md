@@ -110,6 +110,24 @@ For local development, the plugin also works straight from
 `~/.config/omarchy/plugins/`; `omarchy plugin validate <dir>` checks the
 manifest.
 
+### Update / remove
+
+```bash
+omarchy plugin update honor.shutdown-timer   # pull the latest release
+omarchy plugin disable honor.shutdown-timer  # keep the files, hide the widget
+omarchy plugin remove honor.shutdown-timer   # uninstall (files + bar entry)
+```
+
+Removal cleans the plugin directory and its bar entry; the runtime state under
+`~/.local/state/omarchy/plugins/shutdown-timer/` is left behind on purpose, so
+a re-install finds its history. Delete it by hand for a full reset.
+
+### Dependencies
+
+Nothing beyond a stock Omarchy: `bash`, `jq`-free parsing, `systemd-inhibit`
+and `upower` are used opportunistically, the daemon runs without either. The
+overlay uses the shell's own `qs.Ui` components.
+
 ## Usage
 
 Click the bar icon to open the menu, pick an action and a time, then launch.
