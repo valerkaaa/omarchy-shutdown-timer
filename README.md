@@ -36,6 +36,11 @@ always cancel.
 
 ## Screenshots
 
+The four states in motion (`idle → active → warning → countdown → paused`):
+
+![](assets/screenshots/states.gif)
+
+
 Bar states (dark theme *ristretto* / light theme *Flexoki Light*) — a live
 run, cropped from real screenshots:
 
