@@ -95,6 +95,21 @@ honor.shutdown-timer/
 └── tools/           # local dev scripts (icon preview)
 ```
 
+## Install
+
+```bash
+omarchy plugin add https://github.com/valerkaaa/omarchy-shutdown-timer
+omarchy plugin enable honor.shutdown-timer
+```
+
+Then click the power mark in the bar. Everything (popup, overlay, CLI,
+notifications) follows the widget's `language` setting — `auto` tracks the
+system locale.
+
+For local development, the plugin also works straight from
+`~/.config/omarchy/plugins/`; `omarchy plugin validate <dir>` checks the
+manifest.
+
 ## Usage
 
 Click the bar icon to open the menu, pick an action and a time, then launch.
@@ -175,7 +190,10 @@ is clean; anything listed there is a real overflow with the item path and side.
   daemon only runs the action when it wrote `COUNTDOWN` and the claim is still
   fresh, so a cancel that lands in the same second wins.
 - Tests must cancel before zero: wait for `COUNTDOWN`, then `Esc` / IPC cancel
-  and verify `state.json` is back at `IDLE`.
+  and verify `state.json` is back at `IDLE` — or flip the dry-run switch
+  (*Advanced → Dry run*) and let the timer actually reach zero.
+- A deadline that passes while the machine is suspended opens the countdown
+  window on wake instead of firing into a black screen.
 
 ## License
 
