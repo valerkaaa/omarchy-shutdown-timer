@@ -97,10 +97,23 @@ honor.shutdown-timer/
 
 ## Install
 
+The repository is private, so the plain URL clone needs credentials once:
+
 ```bash
-omarchy plugin add https://github.com/valerkaaa/omarchy-shutdown-timer
+gh auth login                                    # if gh is not signed in yet
+gh repo clone valerkaaa/omarchy-shutdown-timer ~/.config/omarchy/plugins/honor.shutdown-timer
 omarchy plugin enable honor.shutdown-timer
 ```
+
+With a token in the URL the one-liner works too:
+
+```bash
+omarchy plugin add https://<token>@github.com/valerkaaa/omarchy-shutdown-timer
+omarchy plugin enable honor.shutdown-timer
+```
+
+If the repository is made public later, `omarchy plugin add <url>` alone is
+enough and the credentials step can be dropped.
 
 Then click the power mark in the bar. Everything (popup, overlay, CLI,
 notifications) follows the widget's `language` setting — `auto` tracks the
