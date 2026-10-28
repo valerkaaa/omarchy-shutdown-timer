@@ -34,6 +34,30 @@ always cancel.
 - **CLI**: `control.sh set 30 poweroff | at 23:30 | cancel | status | pause |
   resume | snooze 5 | reset | schedule add/list/remove | history`.
 
+## Screenshots
+
+Bar states (dark theme *ristretto* / light theme *Flexoki Light*) — a live
+run, cropped from real screenshots:
+
+| state | dark | light |
+|---|---|---|
+| idle (dimmed icon) | ![](assets/screenshots/dark/1-idle.png) | ![](assets/screenshots/light/1-idle.png) |
+| active | ![](assets/screenshots/dark/2-active.png) | ![](assets/screenshots/light/2-active.png) |
+| last 5 min (accent) | ![](assets/screenshots/dark/3-warning.png) | ![](assets/screenshots/light/3-warning.png) |
+| paused | ![](assets/screenshots/dark/4-paused.png) | ![](assets/screenshots/light/4-paused.png) |
+| countdown (urgent) | ![](assets/screenshots/dark/5-countdown.png) | ![](assets/screenshots/light/5-countdown.png) |
+
+The popup, the full-screen countdown, and the vertical bar layout:
+
+| popup | countdown overlay | vertical bar |
+|---|---|---|
+| ![](assets/screenshots/dark/6-popup.png) | ![](assets/screenshots/dark/7-overlay.png) | ![](assets/screenshots/dark/8-vertical.png) |
+
+The mark at real bar sizes — 16 / 20 / 24 / 32 px, dark on top, light below
+(if it reads at 16 px, it reads everywhere):
+
+![](assets/screenshots/icon-sizes.png)
+
 ## Architecture
 
 One plugin, two kinds (`manifest.json`: `bar-widget`, `overlay`):
