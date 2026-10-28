@@ -1,0 +1,6 @@
+# local dev leftovers
+tools/*.pyc
+__pycache__/
+
+# the preview sheet is regenerated
+sheet.png

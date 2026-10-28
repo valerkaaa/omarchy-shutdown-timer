@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+     stroke="#ffffff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+  <title>Shutdown imminent</title>
+  <path d="M5.6 2.8 H18.4"/>
+  <path d="M5.6 21.2 H18.4"/>
+  <path d="M7.4 3.4 C7.4 9 12 10.2 12 12 C12 13.8 7.4 15 7.4 20.6"/>
+  <path d="M16.6 3.4 C16.6 9 12 10.2 12 12 C12 13.8 16.6 15 16.6 20.6"/>
+  <path d="M9.6 18.4 H14.4 L12 15.4 Z" fill="#ffffff" stroke="none"/>
+</svg>

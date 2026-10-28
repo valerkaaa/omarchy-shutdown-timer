@@ -1,0 +1,17 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Omarchy Shutdown Plugin icon">
+  <defs>
+    <linearGradient id="grad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" style="stop-color:#0b5f75;" />
+      <stop offset="100%" style="stop-color:#0a2a54;" />
+    </linearGradient>
+  </defs>
+  <circle cx="256" cy="256" r="200" fill="url(#grad)" stroke="none" />
+  <circle cx="256" cy="256" r="110" fill="none" stroke="#ffffff" stroke-width="22" stroke-linecap="round"/>
+  <line x1="256" y1="56" x2="256" y2="200" stroke="#ffffff" stroke-width="22" stroke-linecap="round"/>
+  <g fill="#ffffff">
+    <rect x="60" y="210" width="120" height="60" rx="12" ry="12"/>
+    <rect x="178" y="232" width="12" height="40" rx="2"/>
+    <rect x="194" y="232" width="12" height="40" rx="2"/>
+  </g>
+  <line x1="178" y1="256" x2="144" y2="256" stroke="#ffffff" stroke-width="8" />
+</svg>

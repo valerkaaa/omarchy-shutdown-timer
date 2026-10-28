@@ -1,0 +1,144 @@
+# Shutdown Timer for Omarchy
+
+Schedule shutdown, reboot, suspend, or hibernate with a live countdown you can
+always cancel.
+
+## Features
+
+- **Presets**: 15 / 30 / 45 / 60 / 90 / 120 minutes, one click.
+- **Custom time**: slider 1–1440 min plus a numeric field, or an absolute time
+  (`ЧЧ:ММ` / `HH:MM`).
+- **Four actions**: power off, reboot, suspend, hibernate.
+- **Live bar label**: the remaining time sits next to the icon while a timer
+  runs; the icon turns urgent in the last minute.
+- **Full-screen countdown** (default 30 s, configurable): large monospace
+  countdown, a progress bar, **Отмена / Cancel** and **+5 минут / +5 minutes**.
+  `Esc` cancels, `Enter` postpones. The overlay follows the system theme.
+- **Early warning** (default 5 min): a notification before the action fires.
+- **Languages**: `auto` (system locale), `en`, `ru` — switchable per widget in
+  the bar settings; the popup, the overlay, the notification and the CLI all
+  follow the same setting.
+- **Schedule** (TZ 9.5): repeating timers per weekday (`once` / `daily` /
+  `weekdays` / `weekends`), listed and removable straight from the popup.
+- **Conditions** (TZ 9.4): wait for inhibitors (playing video, backups) and a
+  low-battery guard before the action fires; a busy flag is shown in the popup.
+- **History** (TZ 6.3): the last runs with their outcome (`executed` /
+  `cancelled`), so it is obvious what happened last night.
+- **Keyboard-first**: arrow keys walk the popup (actions, presets, repeat,
+  schedules, advanced toggles, launch), `Enter`/`Space` activates, `x` removes
+  the selected schedule, `c` / `p` / `s` / `r` cancel / pause / snooze / reset.
+  The overlay takes `Esc` and `Enter` directly.
+- **Contrast-checked**: popup and overlay text auto-clears 4.5:1 against the
+  theme surface, on light and dark alike; `reducedMotion` disables the pulse
+  and easing.
+- **CLI**: `control.sh set 30 poweroff | at 23:30 | cancel | status | pause |
+  resume | snooze 5 | reset | schedule add/list/remove | history`.
+
+## Architecture
+
+One plugin, two kinds (`manifest.json`: `bar-widget`, `overlay`):
+
+1. **Panel.qml** — the bar button and its popup menu.
+2. **Overlay.qml** — the full-screen countdown surface (`PanelWindow` +
+   `WlrLayershell`, `IpcHandler` target `honor.shutdown-timer:overlay`).
+3. **daemon.sh** — background process that owns the timer, writes `state.json`,
+   fires the notification and summons the overlay. Started via `control.sh
+   ensure`; restarted automatically by `Service.qml`.
+4. **control.sh** — the command-line front end (and the fallback the overlay
+   uses if the daemon is unreachable).
+
+State lives in `~/.local/state/omarchy/plugins/shutdown-timer/`
+(`state.json`, `daemon.log`, `daemon.pid`, `control`, `settings.json`).
+
+## Files
+
+```
+honor.shutdown-timer/
+├── manifest.json    # declaration: 2 kinds, settings schema (incl. language)
+├── Panel.qml        # bar button + popup menu
+├── Overlay.qml      # full-screen countdown overlay
+├── Service.qml      # polls state.json, exposes set/cancel/pause/…; tr()
+├── Model.js         # formatting + i18n (STRINGS, t(), resolveLang())
+├── TimerIcon.qml    # vector power mark (canonical MDI geometry, bevel copies)
+├── daemon.sh        # background timer daemon
+├── control.sh       # CLI interface
+├── assets/          # plugin-store icons + SVG twins of the mark
+└── tools/           # local dev scripts (icon preview)
+```
+
+## Usage
+
+Click the bar icon to open the menu, pick an action and a time, then launch.
+
+- **Left click** — open the menu.
+- **Right click** — cancel a running timer (or refresh when idle).
+- **Esc / Отмена** in the overlay — cancel; **Enter / +5** — postpone.
+- **In the menu**: arrows move the cursor, `Enter` activates, `Esc` closes.
+  Shortcuts: `c` cancel, `p` pause/resume, `s` snooze, `r` reset, `x` delete
+  the selected schedule. Before the first arrow press `Enter` launches the
+  timer straight away, so the mouse-free path is: click icon → type `30`? no —
+  arrow to a preset → `Enter`.
+
+CLI:
+
+```bash
+cd ~/.config/omarchy/plugins/honor.shutdown-timer
+./control.sh set 30 poweroff        # 30 minutes from now
+./control.sh at 23:30               # at 23:30 (tomorrow if already past)
+./control.sh status                 # add --json for machine-readable output
+./control.sh pause && ./control.sh resume
+./control.sh snooze 5
+./control.sh cancel
+./control.sh schedule add 23:30 daily poweroff
+./control.sh schedule list
+./control.sh schedule remove <id>
+./control.sh history
+```
+
+## Settings
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `language` | `auto` | `auto` follows the system locale; `en` / `ru` force one. |
+| `refreshIntervalSec` | `1` | Poll interval. |
+| `notifyEarlyMins` | `5` | Early warning; `0` disables it. |
+| `overlaySeconds` | `30` | Length of the full-screen countdown. |
+| `defaultAction` | `poweroff` | Pre-selected action. |
+| `snoozeMins` | `5` | Length of one "snooze" / "+N minutes". |
+| `presets` | `15,30,45,60,90,120` | Quick-pick buttons in the popup. |
+| `quiet` | `false` | Suppress notifications while a timer is armed. |
+| `batteryGuard` | `false` | Do not run the action on low battery. |
+| `batteryThreshold` | `20` | Low-battery threshold, percent. |
+| `waitForInhibitors` | `false` | Wait until inhibitors clear before firing. |
+| `tickSound` | `false` | Tick once per second inside the countdown. |
+| `reducedMotion` | `false` | Static icon, no progress-bar easing. |
+
+```bash
+omarchy bar set honor.shutdown-timer language ru
+omarchy bar set honor.shutdown-timer overlaySeconds 60 --json
+```
+
+## Debug IPC
+
+```bash
+omarchy-shell honor.shutdown-timer status          # state + action + time left
+omarchy-shell honor.shutdown-timer debugLayout     # bar/popup/hero geometry numbers
+omarchy-shell honor.shutdown-timer debugOverflow   # children spilling out of the popup
+omarchy-shell honor.shutdown-timer:overlay cancel  # same path as the overlay button
+```
+
+`debugOverflow` returns `{"count":0,"items":[]}` in every state when the layout
+is clean; anything listed there is a real overflow with the item path and side.
+
+## Safety
+
+- A new timer always overwrites the previous one — no confirmation dialog.
+- Every path that executes a power action goes through the claim file: the
+  daemon only runs the action when it wrote `COUNTDOWN` and the claim is still
+  fresh, so a cancel that lands in the same second wins.
+- Tests must cancel before zero: wait for `COUNTDOWN`, then `Esc` / IPC cancel
+  and verify `state.json` is back at `IDLE`.
+
+## License
+
+MIT

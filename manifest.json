@@ -1,0 +1,188 @@
+{
+  "schemaVersion": 1,
+  "id": "honor.shutdown-timer",
+  "name": "Shutdown Timer",
+  "version": "2.0.0",
+  "author": "honor",
+  "license": "MIT",
+  "description": "Schedule shutdown, reboot, suspend, or hibernate with a configurable timer, countdown overlay, and cancel button.",
+  "kinds": [
+    "bar-widget",
+    "overlay"
+  ],
+  "keepLoaded": true,
+  "entryPoints": {
+    "barWidget": "Panel.qml",
+    "overlay": "Overlay.qml"
+  },
+  "barWidget": {
+    "displayName": "Shutdown Timer",
+    "description": "Schedule power actions: shutdown, reboot, suspend, hibernate.",
+    "category": "System",
+    "aliases": [
+      "shutdown",
+      "timer",
+      "poweroff",
+      "reboot",
+      "suspend",
+      "hibernate"
+    ],
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "refreshIntervalSec": 1,
+      "notifyEarlyMins": 5,
+      "overlaySeconds": 30,
+      "defaultAction": "poweroff",
+      "language": "auto",
+      "snoozeMins": 5,
+      "presets": "15,30,45,60,90,120",
+      "waitForInhibitors": false,
+      "batteryGuard": false,
+      "batteryThreshold": 20,
+      "quiet": false,
+      "tickSound": false,
+      "reducedMotion": false
+    },
+    "schema": [
+      {
+        "key": "language",
+        "type": "enum",
+        "label": "Language",
+        "options": [
+          "auto",
+          "en",
+          "ru"
+        ],
+        "defaultValue": "auto",
+        "description": "Interface language. \"auto\" follows the system locale."
+      },
+      {
+        "key": "refreshIntervalSec",
+        "type": "integer",
+        "label": "Poll interval (seconds)",
+        "min": 1,
+        "max": 60,
+        "step": 1,
+        "defaultValue": 1
+      },
+      {
+        "key": "notifyEarlyMins",
+        "type": "integer",
+        "label": "Early warning before action (minutes)",
+        "min": 0,
+        "max": 60,
+        "step": 1,
+        "defaultValue": 5,
+        "description": "Send a notification this many minutes before the action executes. 0 disables the early warning."
+      },
+      {
+        "key": "overlaySeconds",
+        "type": "integer",
+        "label": "Full-screen countdown (seconds)",
+        "min": 5,
+        "max": 120,
+        "step": 5,
+        "defaultValue": 30,
+        "description": "How long the full-screen overlay with big countdown and cancel button shows before the action runs."
+      },
+      {
+        "key": "defaultAction",
+        "type": "enum",
+        "label": "Default action",
+        "options": [
+          "poweroff",
+          "reboot",
+          "suspend",
+          "hibernate"
+        ],
+        "defaultValue": "poweroff",
+        "description": "Pre-selected action when opening the menu."
+      },
+      {
+        "key": "snoozeMins",
+        "type": "integer",
+        "label": "Snooze step (minutes)",
+        "min": 1,
+        "max": 60,
+        "step": 1,
+        "defaultValue": 5,
+        "description": "How many minutes the +5 buttons and Enter on the overlay add."
+      },
+      {
+        "key": "presets",
+        "type": "string",
+        "label": "Quick presets (minutes, comma-separated)",
+        "defaultValue": "15,30,45,60,90,120"
+      },
+      {
+        "key": "quiet",
+        "type": "boolean",
+        "label": "Quiet mode (no notifications)",
+        "defaultValue": false
+      },
+      {
+        "key": "batteryGuard",
+        "type": "boolean",
+        "label": "Never power off on battery",
+        "defaultValue": false,
+        "description": "Below the threshold and on battery, power off becomes suspend."
+      },
+      {
+        "key": "batteryThreshold",
+        "type": "integer",
+        "label": "Battery guard threshold (%)",
+        "min": 5,
+        "max": 50,
+        "step": 5,
+        "defaultValue": 20
+      },
+      {
+        "key": "waitForInhibitors",
+        "type": "boolean",
+        "label": "Wait for sleep/shutdown inhibitors",
+        "defaultValue": false,
+        "description": "Wait up to 10 minutes for another program holding a sleep:shutdown lock."
+      },
+      {
+        "key": "tickSound",
+        "type": "boolean",
+        "label": "Tick sound in the last 3 seconds",
+        "defaultValue": false
+      },
+      {
+        "key": "reducedMotion",
+        "type": "boolean",
+        "label": "Reduce motion",
+        "defaultValue": false,
+        "description": "Disable the pulsing icon and the progress-bar easing."
+      }
+    ]
+  },
+  "icons": [
+    {
+      "name": "omarchy_shutdown_plugin_icon_light_disc.svg",
+      "variant": "light",
+      "shape": "disc",
+      "size": 512
+    },
+    {
+      "name": "omarchy_shutdown_plugin_icon_light_round.svg",
+      "variant": "light",
+      "shape": "round",
+      "size": 512
+    },
+    {
+      "name": "omarchy_shutdown_plugin_icon_dark_disc.svg",
+      "variant": "dark",
+      "shape": "disc",
+      "size": 512
+    },
+    {
+      "name": "omarchy_shutdown_plugin_icon_dark_round.svg",
+      "variant": "dark",
+      "shape": "round",
+      "size": 512
+    }
+  ]
+}
