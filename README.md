@@ -11,6 +11,9 @@ always cancel.
 - **Four actions**: power off, reboot, suspend, hibernate.
 - **Live bar label**: the remaining time sits next to the icon while a timer
   runs; the icon turns urgent in the last minute.
+- **Hardened daemon**: every command is validated daemon-side (the control
+  channel is a plain file anyone in the session can write), so a malformed line
+  can never kill the timer — see [Robustness](#robustness).
 - **Full-screen countdown** (default 30 s, configurable): large monospace
   countdown, a progress bar, **Отмена / Cancel** and **+5 минут / +5 minutes**.
   `Esc` cancels, `Enter` postpones. The overlay follows the system theme.
@@ -92,7 +95,7 @@ honor.shutdown-timer/
 ├── daemon.sh        # background timer daemon
 ├── control.sh       # CLI interface
 ├── assets/          # plugin-store icons + SVG twins of the mark
-└── tools/           # local dev scripts (icon preview)
+└── tools/           # dev scripts: live screenshots, card bbox + check, acceptance
 ```
 
 ## Install
@@ -140,6 +143,28 @@ a re-install finds its history. Delete it by hand for a full reset.
 Nothing beyond a stock Omarchy: `bash`, `jq`-free parsing, `systemd-inhibit`
 and `upower` are used opportunistically, the daemon runs without either. The
 overlay uses the shell's own `qs.Ui` components.
+
+### Robustness
+
+The daemon is a small bash process that owns the countdown, so it is written to
+survive whatever lands on its doorstep:
+
+- The command channel is a **file**, not a socket: any process in the session
+  can write into it. Every command is therefore validated by the daemon itself
+  (not only by `control.sh`): minutes must be 1..1440, the action must be one of
+  `poweroff|reboot|suspend|hibernate|lock`, `HH:MM` must be in range, the snooze
+  count must be a positive number, and schedule ids are `[0-9A-Za-z]+` with
+  weekdays 1..7. Anything else is logged and ignored — it used to be able to
+  kill the daemon outright (and with it a pending shutdown).
+- `state.json` is written atomically (`tmp` + `mv`), so a reader never sees a
+  half-written file and a `kill -9` in the middle leaves the previous state
+  intact. An overdue timer re-opens the countdown window on restart instead of
+  firing silently.
+- A single `flock` guarantees one daemon; the pid file lets `control.sh ensure`
+  restart it after a crash.
+
+No network access, no `eval`, no `curl | bash`: the plugin is files it ships
+plus `bash`.
 
 ## Usage
 

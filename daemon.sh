@@ -303,6 +303,13 @@ close_overlay() {
 announced_early=false
 announced_countdown=false
 
+# Commands normally come from control.sh, which validates first. The control
+# FILE is readable/writable by anyone in the session, though, so the daemon
+# checks again: without this a hand-written `set:abc:poweroff` makes bash
+# evaluate `$((abc * 60))`, which under `set -u` kills the daemon outright.
+valid_action() { case "$1" in poweroff|reboot|suspend|hibernate|lock) return 0 ;; *) return 1 ;; esac; }
+valid_minutes() { [[ "$1" =~ ^[0-9]+$ ]] && (( $1 >= 1 && $1 <= 1440 )); }
+
 arm_timer() { # seconds action mode snoozeCount
   local secs="$1" act="$2" m="$3" sc="${4:-0}"
   local now; now=$EPOCHSECONDS
@@ -318,6 +325,14 @@ process_command() {
       local rest="${cmd#set:}"
       local mins="${rest%%:*}" act="${rest#*:}"
       [[ "$act" == "$rest" ]] && act="poweroff"
+      if ! valid_minutes "$mins"; then
+        log "rejected set: minutes '$mins' out of range"
+        return 0
+      fi
+      if ! valid_action "$act"; then
+        log "rejected set: unknown action '$act'"
+        return 0
+      fi
       arm_timer $((mins * 60)) "$act" "relative" 0
       append_history "set" "$act"
       ;;
@@ -331,6 +346,15 @@ process_command() {
       local hm="${hh}:${mm}"
       local act="${rest#*:}"
       [[ "$act" == "$mm" || -z "$act" ]] && act="poweroff"
+      if [[ ! "$hh" =~ ^[0-9]+$ ]] || [[ ! "$mm" =~ ^[0-9]+$ ]] \
+         || (( 10#$hh > 23 || 10#$mm > 59 )); then
+        log "rejected set-abs: invalid time '$hm'"
+        return 0
+      fi
+      if ! valid_action "$act"; then
+        log "rejected set-abs: unknown action '$act'"
+        return 0
+      fi
       local now target
       now=$EPOCHSECONDS
       target=$(date -d "today $hm" +%s 2>/dev/null || echo $((now + 3600)))
@@ -357,6 +381,10 @@ process_command() {
     snooze:*)
       read_state
       local mins="${cmd#snooze:}"
+      if [[ ! "$mins" =~ ^[0-9]+$ ]] || (( mins < 1 || mins > 1440 )); then
+        log "rejected snooze: '$mins' is not a minute count"
+        return 0
+      fi
       if [[ "$status" == "ACTIVE" || "$status" == "COUNTDOWN" || "$status" == "COUNTDOWN_SCHED" ]]; then
         if (( snooze_count >= snooze_limit )); then log "snooze refused (limit $snooze_limit)"; return 0; fi
         local now new_target new_left
@@ -401,11 +429,30 @@ process_command() {
       local act="${rest#*:}"
       local hm="${hh}:${mm}"
       [[ -z "$act" || "$act" == "$days" ]] && act="poweroff"
+      if [[ ! "$id" =~ ^[0-9A-Za-z]+$ ]] || [[ ! "$days" =~ ^[1-7](,[1-7])*$ ]]; then
+        log "rejected schedule-add: bad id '$id' or days '$days'"
+        return 0
+      fi
+      if [[ ! "$hh" =~ ^[0-9]+$ ]] || [[ ! "$mm" =~ ^[0-9]+$ ]] \
+         || (( 10#$hh > 23 || 10#$mm > 59 )); then
+        log "rejected schedule-add: invalid time '$hm'"
+        return 0
+      fi
+      if ! valid_action "$act"; then
+        log "rejected schedule-add: unknown action '$act'"
+        return 0
+      fi
       printf '%s\t%s\t%s\t%s\t-\n' "$id" "$hm" "$days" "$act" >> "$SCHEDULES_FILE"
       log "schedule added: $id $hm $days $act"
       ;;
     schedule-remove:*)
       local id="${cmd#schedule-remove:}"
+      # `grep -v "^$id<TAB>"` would read a hand-written id like `.*` as a
+      # regular expression and delete every schedule, so the id must be plain.
+      if [[ -n "$id" && ! "$id" =~ ^[0-9A-Za-z]+$ ]]; then
+        log "rejected schedule-remove: bad id '$id'"
+        return 0
+      fi
       if [[ -f "$SCHEDULES_FILE" ]]; then
         # $'	' is a real tab; "^$id	" in basic grep would match the letter t
         grep -v "^$id"$'	' "$SCHEDULES_FILE" > "$SCHEDULES_FILE.tmp" || true
@@ -444,8 +491,8 @@ case "$status" in
       # window instead of firing instantly
       set_state "COUNTDOWN" "$action" "$overlay_seconds" "$((now + overlay_seconds))" "$mode" "$now" "$snooze_count" ""
       announced_early=true; announced_countdown=true
-      summon_overlay
       log "restored overdue ACTIVE as COUNTDOWN (${overlay_seconds}s window)"
+      summon_overlay
     fi
     ;;
   PAUSED|COUNTDOWN|COUNTDOWN_SCHED)
@@ -516,8 +563,8 @@ while true; do
           # countdown window instead of firing into a just-woken screen
           set_state "COUNTDOWN" "$action" "$overlay_seconds" "$((now + overlay_seconds))" "$mode" "$now" "$snooze_count" ""
           announced_early=true; announced_countdown=true
-          summon_overlay
           log "deadline passed during sleep (gap ${loop_gap}s) — ${overlay_seconds}s window"
+          summon_overlay
           continue
         fi
         # conditions (TZ 9.4) — checked once, right before acting
@@ -563,8 +610,8 @@ while true; do
       if (( time_left <= 0 )); then
         if (( loop_gap >= 5 )); then
           set_state "$status" "$action" "$overlay_seconds" "$((now + overlay_seconds))" "$mode" "$now" "$snooze_count" ""
-          summon_overlay
           log "countdown slept through (gap ${loop_gap}s) — ${overlay_seconds}s window"
+          summon_overlay
           continue
         fi
         local_action=$(battery_guard_should_swap "$action")

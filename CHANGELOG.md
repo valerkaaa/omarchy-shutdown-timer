@@ -4,6 +4,52 @@ All notable changes to this plugin are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/), and the
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.2.0] — 2026-10-29
+
+Hardening pass after the review: the daemon can no longer be killed by a
+malformed command, and the bar mark is optically matched to its neighbours.
+
+### Added
+
+- **The README screenshots are generated, not hand-made.** `tools/screenshots.sh`
+  captures every surface (five bar states, popup, overlay, vertical bar) live on
+  both themes and builds `states.gif` from them. `tools/card_bbox.py` finds a
+  card by its own frame, and `tools/frame_check.py` proves the finished crop
+  really frames it — a capture in the wrong coordinate space still looks fine
+  and was shipping the desktop behind the popup. One capture is cut, never two,
+  so the measured box and the pixels cannot drift apart mid-shot.
+  `tools/acceptance.sh` runs the same check on the committed images.
+
+### Fixed
+
+- **A malformed control line no longer kills the daemon.** The control channel
+  is a plain file any process in the session can write, and the daemon used to
+  evaluate it unchecked: `set:abc:poweroff` reached `$((abc * 60))` and, under
+  `set -u`, ended the process — taking the user's scheduled shutdown with it.
+  The daemon now validates every command (minutes 1..1440, action whitelist,
+  `HH:MM` range, snooze count, schedule id charset and weekday 1..7) and logs
+  the rejection instead of dying. Covered by `tests/test_input.sh`.
+- **A schedule id with a regex metacharacter** (`.*`) was used as a `grep`
+  pattern on removal and deleted every schedule; ids are now plain
+  `[0-9A-Za-z]+`.
+- **The state badge cut itself out in black**, which read as dirt around the
+  mark on a light bar. The badge is now outlined in the surface it is painted
+  on (bar or popup background), so it reads as a clean notch on both themes.
+- Deprecated QML signal-handler parameters (`onChanged:`/`onModified:` using
+  the injected `value`/`code`) replaced with formal parameters; the Dropdown
+  used a non-existent `onValueChanged` and is now on its real `changed`.
+
+### Changed
+
+- **Bar mark sized by painted ink, not by box.** The Nerd Font glyphs beside
+  the widget paint 11–12 px inside the 16 px icon canvas; the mark now uses the
+  same canvas and paints ~12 px, so it no longer overpowers the row. The stroke
+  and the state badge scale with the slot, and the widget takes exactly one
+  27 px icon slot when idle (the label gutter only exists while the countdown
+  is on screen).
+- `Shape.CurveRenderer` for the mark: the ring is anti-aliased instead of
+  stair-stepped at bar size.
+
 ## [2.1.0] — 2026-10-28
 
 Icon pass: the mark is rebuilt as a stroked path and the store icons get proper

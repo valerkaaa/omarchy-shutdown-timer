@@ -30,10 +30,14 @@ import qs.Commons as Commons
 Item {
   id: root
 
-  // A ring needs a couple of pixels more than a text glyph to look the same
-  // optical weight beside the bar's 13 px icons.
-  property real iconSize: Style.font.display
+  // Painted ink ≈ 0.8 × iconSize. The bar passes 16 (the shell's icon
+  // canvas), which lands on the same optical size as the Nerd Font glyphs.
+  property real iconSize: Style.bar.iconCanvas
   property color color: Commons.Color.foreground
+  // What the state badge cuts out of the mark. It has to be the surface the
+  // mark is drawn on (the bar or the popup), not a fixed black: a black ring
+  // on a light bar reads as dirt around the badge instead of a clean notch.
+  property color cutout: Commons.Color.bar.background
   property string variant: "idle"
   // "reduce motion" honouring: the shell exposes it; a static mark otherwise
   property bool animate: true
@@ -43,7 +47,7 @@ Item {
   readonly property real ring: 8.0 * unit
   // A hairline disappears on a 1x screen, a fat stroke closes the ring's
   // counter: the band is 1.4 units, clamped so it never drops under a pixel.
-  readonly property real stroke: Math.max(1.1, 1.35 * unit)
+  readonly property real stroke: Math.max(1.35, 1.55 * unit)
 
   width: iconSize
   height: iconSize
@@ -71,6 +75,7 @@ Item {
     Shape {
       anchors.fill: parent
       antialiasing: true
+      preferredRendererType: Shape.CurveRenderer
 
       // ring, open across the top: -55° to +235° leaves the canonical 70° gap
       ShapePath {
@@ -104,8 +109,8 @@ Item {
     }
 
     // ---- state badge, lower right: dot for running, two bars for paused ----
-    // Sits on the ring's lower-right shoulder and is outlined in a dark ring so
-    // it cuts the mark instead of blending into it.
+    // Sits on the ring's lower-right shoulder and is outlined in the surface
+    // colour so it cuts the mark instead of blending into it.
     Rectangle {
       readonly property real d: Math.max(5, root.iconSize * 0.30)
       visible: root.variant === "active" || root.variant === "countdown"
@@ -116,7 +121,7 @@ Item {
       y: root.iconSize * 0.68
       color: root.color
       border.width: Math.max(1, root.iconSize * 0.07)
-      border.color: Qt.rgba(0, 0, 0, 0.6)
+      border.color: root.cutout
     }
 
     Row {
@@ -135,7 +140,7 @@ Item {
           radius: width / 2
           color: root.color
           border.width: Math.max(1, root.iconSize * 0.06)
-          border.color: Qt.rgba(0, 0, 0, 0.6)
+          border.color: root.cutout
         }
       }
     }

@@ -17,9 +17,12 @@ Panel {
 
   // The bar host sizes a widget slot from its implicit size only: without
   // these the widget occupies zero pixels and never shows up on the bar.
+  // Idle takes exactly one icon slot (27 px), like every other bar icon; the
+  // extra gutter exists only while the countdown label is on screen, so the
+  // widget never sits in a wider slot than its neighbours for no reason.
   implicitWidth: vertical
                  ? button.implicitWidth
-                 : button.implicitWidth + (timeLabel.visible ? timeLabel.implicitWidth + Style.space(2) : 0) + Style.space(4)
+                 : button.implicitWidth + (timeLabel.visible ? timeLabel.implicitWidth + Style.space(2) + Style.space(4) : 0)
   implicitHeight: vertical
                   ? button.implicitHeight + (verticalTime.visible ? verticalTime.implicitHeight : 0)
                   : button.implicitHeight
@@ -28,6 +31,9 @@ Panel {
   readonly property bool vertical: bar ? bar.vertical : false
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property color foreground: bar ? bar.barForeground : Commons.Color.foreground
+  // The surface the bar icon is painted on; the state badge cuts itself out
+  // of the mark in this colour (black on a light theme looked like dirt).
+  readonly property color barBackground: bar ? bar.background : Commons.Color.bar.background
   readonly property color urgent: bar ? bar.urgent : Commons.Color.urgent
   // The bar API has no `accent` in this shell build (`bar.accent` is
   // undefined), so a fallback on it lands on `foreground` and the ≤5 min
@@ -580,12 +586,16 @@ Panel {
     iconComponent: Component {
       TimerIcon {
         anchors.centerIn: parent
-        // Same optical size as the neighbouring balance glyph: a thin ring
-        // needs the height to keep its counter open, and at 13 px the mark
-        // collapses into a star.
-        iconSize: Style.font.display
+        // Match the neighbours by painted ink, not by box size. The stock
+        // Nerd Font glyphs beside this one paint 11–12 px of ink inside the
+        // 16 px icon canvas; this mark paints ~0.8 × iconSize, so 15 px lands
+        // on the same optical size instead of overpowering the bar. (Measured
+        // on the live bar at scale 1.25: 24 px → 18 px of ink, 20 px → 16,
+        // 16 px → 12.8, 15 px → 12.)
+        iconSize: Style.bar.iconCanvas
         reducedMotion: service.reducedMotion
         color: root.barColor
+        cutout: root.barBackground
         variant: root.iconVariant
       }
     }
@@ -717,6 +727,7 @@ Panel {
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
             color: service.status === "IDLE" ? root.foreground : root.barColor
+            cutout: root.popupSurface
             variant: root.iconVariant
           }
 
@@ -819,7 +830,7 @@ Panel {
             { value: "suspend",  label: root.tr("action.suspend") },
             { value: "hibernate", label: root.tr("action.hibernate") }
           ]
-          onValueChanged: root.selectedAction = value
+          onChanged: function(v) { root.selectedAction = v }
         }
 
         // ---- presets ----
@@ -881,7 +892,7 @@ Panel {
           accent: root.popupAccent
           fontFamily: root.fontFamily
           fontSize: Style.font.bodySmall
-          onChanged: root.timeModeAbsolute = (value === "absolute")
+          onChanged: function(v) { root.timeModeAbsolute = (v === "absolute") }
         }
 
         Row {
@@ -917,7 +928,7 @@ Panel {
             value: root.customMinutes
             foreground: root.popupText
             fontFamily: root.fontFamily
-            onModified: root.customMinutes = value
+            onModified: function(v) { root.customMinutes = v }
           }
         }
 
@@ -979,7 +990,7 @@ Panel {
           accent: root.popupAccent
           fontFamily: root.fontFamily
           fontSize: Style.font.bodySmall
-          onChanged: root.repeatMode = value
+          onChanged: function(v) { root.repeatMode = v }
         }
 
         Row {
