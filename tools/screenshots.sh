@@ -154,9 +154,15 @@ vertical_shot() { # theme
   mkdir -p "$OUT/$theme"
   omarchy bar position left >/dev/null 2>&1; sleep 6
   local x y w h; read -r x y w h <<<"$(widget_geometry)"
-  grim -g "0,$((y-60)) $((w+16))x$((h+150))" "$WORK/vert.png"
+  # What a vertical bar actually looks like around the widget: the widget with
+  # its neighbours, the icon column only, captured at device scale and then
+  # upscaled by a whole number so the 1 px strokes stay crisp. Cropping beats a
+  # forced resize: the old `-resize 336x448!` stretched the strip to the wrong
+  # aspect.
+  grim -g "$x,$((y-48)) ${w}x$((h+84))" "$WORK/vert.png"
   omarchy bar position top >/dev/null 2>&1; sleep 6
-  magick "$WORK/vert.png" -filter point -resize '336x448!' "$OUT/$theme/8-vertical.png"
+  magick "$WORK/vert.png" -crop 28x107+2+1 +repage -filter point -resize 800% \
+         "$OUT/$theme/8-vertical.png"
   echo "    $theme/8-vertical.png"
 }
 
