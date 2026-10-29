@@ -3,6 +3,8 @@
 Schedule shutdown, reboot, suspend, or hibernate with a live countdown you can
 always cancel.
 
+![](preview.png)
+
 ## Features
 
 - **Presets**: 15 / 30 / 45 / 60 / 90 / 120 minutes, one click.
@@ -153,6 +155,11 @@ survive whatever lands on its doorstep:
   half-written file and a `kill -9` in the middle leaves the previous state
   intact. An overdue timer re-opens the countdown window on restart instead of
   firing silently.
+- `settings.json`, `state.json` and `schedules.tsv` are re-read on every tick,
+  so a half-written or hand-edited file cannot take the timer down: numeric
+  settings are validated and clamped to their documented range, every state
+  field falls back to a safe default, and junk lines in the schedule file are
+  skipped. Covered by `tests/test_state_files.sh`.
 - A single `flock` guarantees one daemon; the pid file lets `control.sh ensure`
   restart it after a crash.
 

@@ -4,6 +4,25 @@ All notable changes to this plugin are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/), and the
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.2.1] — 2026-10-29
+
+### Fixed
+
+- **A damaged `settings.json` no longer kills the daemon.** Numeric settings
+  land straight in `$(( ))`, and a bare name there is fatal under `set -u`: a
+  hand-written `"notifyEarlyMins": "abc"` ended the process on the next reload
+  (`abc: unbound variable`), and the widget restarted it straight into the same
+  crash — with a pending shutdown lost. Every numeric setting is now validated
+  and clamped to the range the manifest and `Service.qml` already document
+  (early warning, overlay seconds, snooze step, snooze limit, battery
+  threshold): a string falls back to the default, an absurd number is clamped
+  instead of obeyed. `tests/test_state_files.sh` damages all three state files
+  (settings, state, schedules) and proves the daemon survives the damage, keeps
+  its documented ranges, and still arms, snoozes and cancels afterwards.
+- `suspend`/`hibernate` no longer fail silently: if neither `systemctl` nor the
+  Omarchy helper works (no resume device, no logind seat), the log says so
+  instead of the timer just going back to IDLE.
+
 ## [2.2.0] — 2026-10-29
 
 Hardening pass after the review: the daemon can no longer be killed by a

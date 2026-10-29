@@ -89,11 +89,25 @@ resolve_lang() {
   fi
 }
 
+# A numeric setting is still a string from a file anyone in the session can
+# edit, and a bare name in arithmetic is fatal under `set -u`: a hand-written
+# `"notifyEarlyMins": "abc"` killed the daemon on the next reload (`abc: unbound
+# variable`), and the widget restarted it straight into the same crash. Values
+# are validated and clamped here, mirroring the ranges the manifest and
+# Service.qml already enforce on their side.
+num_setting() { # key default min max
+  local v; v=$(settings_field "$1" "$2")
+  [[ "$v" =~ ^-?[0-9]+$ ]] || v="$2"
+  (( v < $3 )) && v=$3
+  (( v > $4 )) && v=$4
+  printf '%s' "$v"
+}
+
 reload_settings() {
-  notify_early_secs=$(( $(settings_field notifyEarlyMins 5) * 60 ))
-  overlay_seconds=$(settings_field overlaySeconds 30)
-  snooze_mins=$(settings_field snoozeMins 5)
-  snooze_limit=$(settings_field snoozeLimit 3)
+  notify_early_secs=$(( $(num_setting notifyEarlyMins 5 0 60) * 60 ))
+  overlay_seconds=$(num_setting overlaySeconds 30 5 120)
+  snooze_mins=$(num_setting snoozeMins 5 1 60)
+  snooze_limit=$(num_setting snoozeLimit 3 0 99)
   quiet=$(settings_field quiet false)
   resolve_lang
 }
@@ -235,7 +249,7 @@ battery_guard_should_swap() { # action → prints "suspend" if guard flips it
   [[ -d "$bat" ]] || { echo "$1"; return; }
   local st cap thresh
   st=$(<"$bat/status"); cap=$(<"$bat/capacity")
-  thresh=$(settings_field batteryThreshold 20)
+  thresh=$(num_setting batteryThreshold 20 5 50)
   if [[ "$st" == "Discharging" && "$cap" -lt "$thresh" && "$1" == "poweroff" ]]; then
     echo "suspend"
   else
@@ -280,8 +294,13 @@ do_action() {
   case "$act" in
     poweroff)  omarchy system shutdown 2>/dev/null || systemctl poweroff ;;
     reboot)    omarchy system reboot   2>/dev/null || systemctl reboot ;;
-    suspend)   systemctl suspend 2>/dev/null || omarchy system suspend 2>/dev/null || true ;;
-    hibernate) systemctl hibernate 2>/dev/null || omarchy system hibernate 2>/dev/null || true ;;
+    # suspend/hibernate have a real failure mode (no resume device, no
+    # logind seat): without a log line the timer just goes IDLE and nothing
+    # appears to have happened at all.
+    suspend)   systemctl suspend 2>/dev/null || omarchy system suspend 2>/dev/null \
+                 || log "suspend failed (no method worked)" ;;
+    hibernate) systemctl hibernate 2>/dev/null || omarchy system hibernate 2>/dev/null \
+                 || log "hibernate failed (is a resume device configured?)" ;;
     lock)      omarchy system lock 2>/dev/null || omarchy-lock-screen 2>/dev/null || true ;;
   esac
 }

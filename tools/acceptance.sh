@@ -68,6 +68,9 @@ out=$(timeout 200 bash tests/test_perf.sh 2>&1); rc=$?
 out=$(timeout 120 bash tests/test_input.sh 2>&1); rc=$?
 [[ $rc -eq 0 ]] && ok "test_input.sh green (bad input is rejected, daemon survives)" || bad "test_input red"
 
+out=$(timeout 120 bash tests/test_state_files.sh 2>&1); rc=$?
+[[ $rc -eq 0 ]] && ok "test_state_files.sh green (damaged state files are survived)" || bad "test_state_files red"
+
 # 12. all tests green, bash -n clean
 out=$(timeout 550 bash tests/run_all.sh 2>&1 | tail -1)
 [[ "$out" == *"ALL GREEN"* ]] && ok "run_all.sh: ALL GREEN" || bad "suite: $out"
