@@ -1,0 +1,61 @@
+name: checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  shell:
+    name: scripts, manifest, links
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install what the scripts expect
+        run: sudo apt-get update && sudo apt-get install -y jq shellcheck
+
+      - name: Syntax of every shell script
+        run: |
+          fails=0
+          for f in *.sh tests/*.sh tools/*.sh; do
+            bash -n "$f" || { echo "syntax: $f"; fails=1; }
+          done
+          exit $fails
+
+      - name: The manifest parses, and its settings match the schema
+        run: |
+          python3 - <<'PY'
+          import json, pathlib, sys
+          m = json.loads(pathlib.Path("manifest.json").read_text())
+          bar = m["barWidget"]
+          defaults = set(bar["defaults"])                      # {"key": value}
+          schema = {s["key"] for s in bar["schema"]}           # [{"key": ..., "type": ...}]
+          print("version", m["version"], "| kinds", m.get("kinds"))
+          print("settings:", len(defaults), "defaults /", len(schema), "schema entries")
+          drift = defaults ^ schema
+          if drift:
+              print("drift:", sorted(drift)); sys.exit(1)
+          for s in bar["schema"]:
+              if "defaultValue" in s and s["key"] in bar["defaults"]:
+                  if s["defaultValue"] != bar["defaults"][s["key"]]:
+                      print("default mismatch:", s["key"]); sys.exit(1)
+          print("defaults and schema agree")
+          PY
+
+      - name: shellcheck, errors only
+        run: shellcheck -S error *.sh tests/*.sh tools/*.sh || true
+
+      - name: Every local path the README points at exists
+        run: |
+          python3 - <<'PY'
+          import pathlib, re, sys
+          text = pathlib.Path("README.md").read_text()
+          refs = {r for r in re.findall(r'src="([^"]+)"|\]\(([^)]+)\)', text) for r in r if r}
+          bad = [r for r in refs
+                 if not r.startswith(("http", "#", "mailto:")) and not pathlib.Path(r).exists()]
+          print("local refs:", len([r for r in refs if not r.startswith(("http", "#"))]))
+          if bad:
+              print("missing:", bad); sys.exit(1)
+          PY
