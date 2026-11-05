@@ -51,6 +51,22 @@ stealing focus.
   theme surface, light and dark alike; `reducedMotion` disables the pulse and
   the easing.
 
+## The popup
+
+<div align="center">
+<img src="assets/screenshots/popup-ru.png" alt="The popup, Russian locale" width="340">
+</div>
+
+One page, top to bottom, no tabs: **the action** (shut down, reboot, suspend,
+hibernate), **the presets** 15–120, **an exact time** — "in N minutes" or a
+clock time, with a slider and a spin box — **repeat** (once, daily, weekdays,
+weekends) with a one-click *add schedule*, four **guards** (don't act on
+battery, quiet, wait for downloads, dry run) and **the history** of the last
+runs.
+
+Right-click the mark cancels a running timer; inside the popup the arrows and
+`Enter` do the same work as the mouse.
+
 ## Screenshots
 
 The four states in motion (`idle → active → warning → countdown → paused`):
@@ -70,11 +86,11 @@ Bar states, cropped from real screenshots — dark (*ristretto*) on top, light
 | paused | ![](assets/screenshots/dark/4-paused.png) | ![](assets/screenshots/light/4-paused.png) |
 | countdown (urgent) | ![](assets/screenshots/dark/5-countdown.png) | ![](assets/screenshots/light/5-countdown.png) |
 
-The popup, the countdown, and the vertical bar layout:
+The countdown and the vertical bar layout:
 
-| popup | countdown overlay | vertical bar |
-|---|---|---|
-| ![](assets/screenshots/dark/6-popup.png) | ![](assets/screenshots/dark/7-overlay.png) | ![](assets/screenshots/dark/8-vertical.png) |
+| countdown overlay | vertical bar |
+|---|---|
+| ![](assets/screenshots/dark/7-overlay.png) | ![](assets/screenshots/dark/8-vertical.png) |
 
 The overlay is the part that earns the plugin: **a large monospace countdown, a
 progress line, Отмена / Cancel and +5 минут / +5 minutes**, with `Esc` and
