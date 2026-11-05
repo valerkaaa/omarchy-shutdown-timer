@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src=".github/social-preview.png" alt="Shutdown Timer for Omarchy" width="100%">
+<img src=".github/social-preview.jpg" alt="Shutdown Timer for Omarchy" width="100%">
 
 # Shutdown Timer
 
