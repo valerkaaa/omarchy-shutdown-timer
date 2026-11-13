@@ -140,6 +140,8 @@ Panel {
   // Presets come from the setting (TZ 9.8), not a literal in the panel.
   readonly property var quickPresets: service.presetList
   property string selectedQuick: ""
+  // Digits typed on the popup, cleared when the panel closes.
+  property string typedMinutes: ""
 
   // ---------- repeat / schedule state ----------
   property string repeatMode: "once"          // once | daily | weekdays | weekends
@@ -152,10 +154,35 @@ Panel {
   // under the finger instead of the running remainder.
   property bool scrubbing: false
 
+  readonly property int heroBaseMinutes: Math.max(1, Math.round(service.timeLeft / 60))
+  readonly property int heroTotalMinutes: {
+    var t = Number(service.targetTime) - Number(service.startTime)
+    return t > 0 ? Math.max(1, Math.round(t / 60)) : 720
+  }
+  // 0 at the start of the timer, 1 at the deadline: drives the colour of the
+  // ring, the way a HUD shifts from calm to alarm.
+  readonly property real urgency: {
+    if (service.status === "IDLE") return 0
+    var f = root.remainingFraction
+    if (f < 0) return 0
+    return Math.max(0, Math.min(1, 1 - f))
+  }
+  function mixColor(a, b, t) {
+    var k = Math.max(0, Math.min(1, t))
+    return Qt.rgba(a.r + (b.r - a.r) * k, a.g + (b.g - a.g) * k,
+                    a.b + (b.b - a.b) * k, a.a + (b.a - a.a) * k)
+  }
+  // The ring is calm accent at the start and urgent at the deadline, with the
+  // whole ramp in between instead of two hard states.
+  readonly property color dialTint: mixColor(root.popupAccent, root.popupUrgent, root.urgency)
+
   // What the dial is full of: the dragged value while scrubbing, the whole
   // proposed time in IDLE, the real remainder while a timer runs.
   readonly property real heroFraction: {
-    if (root.scrubbing) return Math.max(0, Math.min(1, root.customMinutes / 720))
+    if (root.scrubbing) {
+      var span = service.status === "IDLE" ? 720 : root.heroTotalMinutes
+      return Math.max(0, Math.min(1, root.customMinutes / Math.max(1, span)))
+    }
     if (service.status === "IDLE") return 1
     var f = root.remainingFraction
     return f < 0 ? 1 : f
@@ -170,6 +197,10 @@ Panel {
   }
 
   readonly property string heroCaption: {
+    if (root.scrubbing && service.status !== "IDLE") {
+      var d = root.customMinutes - root.heroBaseMinutes
+      return root.tr("hero.delta", (d >= 0 ? "+" : "") + String(d))
+    }
     if (service.status === "IDLE") return root.tr("state.none")
     if (service.status === "PAUSED") return root.tr("state.paused", Model.actionLabel(service.action, language))
     if (service.status === "COUNTDOWN" || service.status === "COUNTDOWN_SCHED")
@@ -199,8 +230,7 @@ Panel {
   function cursorSections() {
     var out = []
     if (service.status !== "IDLE") out.push("hero")
-    out.push("action", "presets", "mode")
-    out.push(timeModeAbsolute ? "abs" : "minutes")
+    out.push("action")
     out.push("tray")
     if (trayOpen === "repeat") {
       out.push("repeat", "addschedule")
@@ -212,8 +242,7 @@ Panel {
   }
 
   function sectionCount(section) {
-    if (section === "presets") return quickPresets.length
-    if (section === "advanced") return 4
+    if (section === "advanced") return 5
     if (section === "schedules") return scheduleRows.length
     if (section === "hero") return 3
     if (section === "tray") return 3
@@ -245,16 +274,11 @@ Panel {
       focusSection = list[at]
       focusIndex = Math.min(focusIndex, Math.max(0, sectionCount(focusSection) - 1))
     } else if (dx !== 0) {
-      if (focusSection === "hero" || focusSection === "presets" ||
-          focusSection === "advanced" || focusSection === "schedules" ||
-          focusSection === "tray") {
+      if (focusSection === "hero" || focusSection === "advanced" ||
+          focusSection === "schedules" || focusSection === "tray") {
         focusIndex = Math.max(0, Math.min(sectionCount(focusSection) - 1, focusIndex + dx))
       } else if (focusSection === "action") {
         selectedAction = cycleIn(actionOptions, selectedAction, dx)
-      } else if (focusSection === "minutes") {
-        customMinutes = Math.max(1, Math.min(1440, customMinutes + dx * 5))
-      } else if (focusSection === "mode") {
-        timeModeAbsolute = !timeModeAbsolute
       } else if (focusSection === "repeat") {
         repeatMode = cycleIn(repeatOptions, repeatMode, dx)
       }
@@ -268,30 +292,21 @@ Panel {
       if (focusIndex === 0) service.status === "PAUSED" ? service.resume() : service.pause()
       else if (focusIndex === 1) service.snooze(5)
       else service.cancel()
-    } else if (focusSection === "presets") {
-      var p = quickPresets[focusIndex]
-      if (p !== undefined) { selectedQuick = String(p); customMinutes = p; quickSet(p) }
     } else if (focusSection === "tray") {
       var keys = ["repeat", "more", "history"]
       var key = keys[focusIndex]
       if (key) trayOpen = (trayOpen === key ? "" : key)
-    } else if (focusSection === "mode") {
-      timeModeAbsolute = !timeModeAbsolute
-    } else if (focusSection === "minutes") {
-      customField.forceActiveFocus()
-    } else if (focusSection === "abs") {
-      absTimeField.forceActiveFocus()
     } else if (focusSection === "addschedule") {
       addSchedule()
     } else if (focusSection === "schedules") {
       var row = scheduleRows[focusIndex]
       if (row) { service.scheduleRemove(row.id); Qt.callLater(function() { root.loadSchedules() }) }
     } else if (focusSection === "advanced") {
-      if (focusIndex === 3) {
+      if (focusIndex === 4) {
         service.setOverride(service.overrideCommand === "" ? "echo" : "off")
       } else {
-        var keys = ["batteryGuard", "quiet", "waitForInhibitors"]
-        var ons = [service.batteryGuard, service.quiet, service.waitForInhibitors]
+        var keys = ["batteryGuard", "quiet", "waitForInhibitors", "ambientFade"]
+        var ons = [service.batteryGuard, service.quiet, service.waitForInhibitors, service.ambientFade]
         if (keys[focusIndex]) toggleSetting(keys[focusIndex], !ons[focusIndex])
       }
     } else if (focusSection === "launch") {
@@ -323,7 +338,6 @@ Panel {
     else if (focusSection === "action") item = actionDropdown
     else if (focusSection === "mode") item = modeGroup
     else if (focusSection === "minutes") item = minutesSlider
-    else if (focusSection === "abs") item = absTimeField
     else if (focusSection === "repeat") item = repeatGroup
     else if (focusSection === "addschedule") item = addScheduleButton
     else if (focusSection === "schedules") item = schedulesColumn
@@ -433,22 +447,10 @@ Panel {
   }
 
   function startTimer() {
-    if (timeModeAbsolute) {
-      if (absoluteTime.trim() === "") {
-        absTimeField.forceActiveFocus()
-        return
-      }
-      if (!/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(absoluteTime.trim())) {
-        absTimeField.forceActiveFocus()
-        return
-      }
-      service.setTimerAbsolute(absoluteTime, selectedAction)
-    } else {
-      var mins = Math.round(customMinutes)
-      if (!mins || mins < 1) mins = 1
-      if (mins > 1440) mins = 1440
-      service.setTimer(mins, selectedAction)
-    }
+    var mins = Math.round(customMinutes)
+    if (!mins || mins < 1) mins = 1
+    if (mins > 720) mins = 720
+    service.setTimer(mins, selectedAction)
     close()
   }
 
@@ -592,6 +594,22 @@ Panel {
     // without relying on pixels.
     // The dial's angle math, so the scrub gesture can be proven from a script
     // without a pointer: feed it a point in the ring's coordinates.
+    // Hold-to-cancel, provable from a script: start the hold, wait, end it.
+    function debugHoldStart(): string {
+      if (service.status === "IDLE") return JSON.stringify({ started: false, reason: "idle" })
+      root.holding = true
+      holdFill.restart()
+      holdTimer.restart()
+      return JSON.stringify({ started: true, status: service.status })
+    }
+    function debugHoldEnd(): string {
+      var fired = holdTimer.fired
+      holdTimer.stop(); holdFill.stop()
+      root.holding = false; root.holdProgress = 0
+      if (fired) service.cancel()
+      return JSON.stringify({ fired: fired, status: service.status })
+    }
+
     // The wheel gesture, provable from a script: same code path the handler
     // calls, without a pointer.
     function debugWheel(step: string): string {
@@ -703,6 +721,7 @@ Panel {
         cutout: root.barBackground
         variant: root.iconVariant
         fraction: root.remainingFraction
+        holdProgress: root.holdProgress
       }
     }
 
@@ -718,16 +737,68 @@ Panel {
       }
     }
 
-    onPressed: function(code) {
-      if (code === Qt.LeftButton) root.toggle()
-      else if (code === Qt.RightButton) {
-        // Right-click is the fastest escape hatch: cancel a running timer,
-        // refresh when there is nothing to cancel.
-        if (service.status === "ACTIVE" || service.status === "COUNTDOWN"
-            || service.status === "COUNTDOWN_SCHED" || service.status === "PAUSED") service.cancel()
-        else service.refresh()
-      }
+  }
+
+  // Press and hold the icon for half a second to cancel, without opening the
+  // popup: the ring fills while the hold lasts, so the gesture is visible
+  // before it fires. A short click still opens the menu; right-click opens it
+  // too (the old right-click-cancel was invisible and conflicted with the
+  // hold).
+  property real holdProgress: 0
+  property bool holding: false
+
+  MouseArea {
+    id: barPress
+    anchors.fill: button
+    hoverEnabled: true
+    acceptedButtons: Qt.LeftButton | Qt.RightButton
+    cursorShape: Qt.PointingHandCursor
+
+    onPressed: function(mouse) {
+      if (mouse.button !== Qt.LeftButton) return
+      if (service.status === "IDLE") return
+      root.holding = true
+      holdFill.restart()
+      holdTimer.restart()
     }
+
+    onReleased: function(mouse) {
+      if (mouse.button !== Qt.LeftButton) return
+      var fired = holdTimer.fired
+      holdTimer.stop()
+      holdFill.stop()
+      root.holding = false
+      root.holdProgress = 0
+      if (fired) { service.cancel(); return }
+      root.toggle()
+    }
+
+    onCanceled: {
+      holdTimer.stop(); holdFill.stop(); root.holding = false; root.holdProgress = 0
+    }
+
+    onClicked: function(mouse) {
+      if (mouse.button === Qt.RightButton) root.toggle()
+    }
+  }
+
+  Timer {
+    id: holdTimer
+    interval: 500
+    repeat: false
+    property bool fired: false
+    onRunningChanged: if (running) fired = false
+    onTriggered: fired = true
+  }
+
+  NumberAnimation {
+    id: holdFill
+    target: root
+    property: "holdProgress"
+    from: 0
+    to: 1
+    duration: 500
+    easing.type: Easing.Linear
   }
 
   // Remaining time, monospaced so the digits do not jitter as they change.
@@ -785,7 +856,7 @@ Panel {
     PanelKeyCatcher {
       id: keyCatcher
       anchors.fill: parent
-      blocked: customField.activeFocus || absTimeField.activeFocus
+      blocked: false
       onCloseRequested: root.close()
       // Arrows start the cursor; until then Enter keeps its old meaning
       // ("launch the timer now").
@@ -804,11 +875,14 @@ Panel {
         }
       }
       onTextKey: function(t) {
-        // TZ 6.3: digits are the fastest way to a preset.
-        if (t >= "1" && t <= "9") {
-          var i = parseInt(t, 10) - 1
-          var p = root.quickPresets[i]
-          if (p !== undefined) { root.selectedQuick = String(p); root.customMinutes = p; root.quickSet(p) }
+        // Digits type the minutes directly: "4" "5" is 45, not a preset.
+        if (t >= "0" && t <= "9") {
+          var typed = root.typedMinutes
+          var next = (typed === "" ? t : typed + t)
+          if (next.length > 3) next = t
+          root.typedMinutes = next
+          var n = parseInt(next, 10)
+          if (n >= 1) root.customMinutes = Math.min(720, n)
           return
         }
         if (t === "c" || t === "C") service.cancel()
@@ -924,27 +998,53 @@ Panel {
                 fraction: root.heroFraction
                 running: service.status !== "IDLE"
                 paused: service.status === "PAUSED"
-                tint: (service.status === "COUNTDOWN" || service.status === "COUNTDOWN_SCHED")
-                      ? root.popupUrgent : root.popupAccent
+                tint: root.dialTint
                 ink: root.popupText
                 scrubbing: root.scrubbing
                 scrubMinutes: root.customMinutes
                 scrubMax: 720
+                reducedMotion: service.reducedMotion
+                deltaMode: service.status !== "IDLE"
+                baseMinutes: root.heroBaseMinutes
                 onScrubbed: function(m) {
                   root.scrubbing = true
                   root.customMinutes = Math.max(1, m)
-                  root.selectedQuick = ""
                 }
                 onClicked: if (service.status === "IDLE") root.startTimer()
                 onScrubFinished: function(m) {
-                  root.customMinutes = Math.max(1, m)
+                  var next = Math.max(1, m)
+                  if (service.status !== "IDLE") {
+                    // A drag while running moves the deadline; it does not
+                    // restart the countdown from an absolute angle.
+                    service.setTimer(next, service.action || root.selectedAction)
+                  }
+                  root.customMinutes = next
                   root.scrubbing = false
                 }
               }
 
               Column {
                 anchors.centerIn: parent
-                spacing: Style.space(2)
+                spacing: Style.space(1)
+
+                // The action being scheduled, as the system's own glyph: the
+                // ring says "when", this says "what".
+                Text {
+                  id: heroActionIcon
+                  anchors.horizontalCenter: parent.horizontalCenter
+                  text: root.glyphForAction(root.selectedAction)
+                  color: root.dialTint
+                  font.family: "monospace"
+                  font.pixelSize: Style.font.title
+                  opacity: 0.9
+                  SequentialAnimation on opacity {
+                    running: service.status === "COUNTDOWN" || service.status === "COUNTDOWN_SCHED"
+                    loops: Animation.Infinite
+                    onRunningChanged: if (!running) heroActionIcon.opacity = 0.9
+                    NumberAnimation { to: 0.35; duration: 420; easing.type: Easing.InOutQuad }
+                    NumberAnimation { to: 0.9;  duration: 420; easing.type: Easing.InOutQuad }
+                  }
+                }
 
                 Text {
                   id: heroFigure
@@ -975,7 +1075,10 @@ Panel {
                   id: heroCandle
                   anchors.horizontalCenter: parent.horizontalCenter
                   candleHeight: Math.round(dialBox.width * 0.22)
-                  fraction: root.heroFraction
+                  // IDLE shows a burnt-down stump, not a whole unlit candle:
+                  // "nothing is burning" has to look like a candle that has
+                  // been burning.
+                  fraction: service.status === "IDLE" ? 0.18 : root.heroFraction
                   lit: service.status !== "IDLE"
                   wax: root.popupText
                   flame: (service.status === "COUNTDOWN" || service.status === "COUNTDOWN_SCHED")
@@ -1046,126 +1149,7 @@ Panel {
           }
         }
 
-        // ---- presets: one row of chips, each launches on click ----
-        Row {
-          id: presetRow
-          width: parent.width
-          spacing: Style.space(6)
-
-          Repeater {
-            model: root.quickPresets
-
-            delegate: Key {
-              required property int modelData
-              width: (presetRow.width - Style.space(6) * Math.max(0, root.quickPresets.length - 1))
-                     / Math.max(1, root.quickPresets.length)
-              text: String(modelData)
-              role: root.selectedQuick === String(modelData) ? "selected" : "ghost"
-              ink: root.popupText
-              accentColor: root.popupAccent
-              surface: root.popupSurface
-              fontSize: Style.font.bodySmall
-              hasCursor: root.cursorActive && root.focusSection === "presets" && root.focusIndex === index
-              onClicked: {
-                root.selectedQuick = String(modelData)
-                root.customMinutes = modelData
-                root.quickSet(modelData)
-              }
-            }
-          }
-        }
-
-        // ---- one time field, one mode switch ----
-        Row {
-          id: timeRow
-          width: parent.width
-          height: Style.spacing.controlHeight
-          spacing: Style.space(8)
-
-          NumberField {
-            id: customField
-            hasCursor: root.cursorActive && root.focusSection === "minutes"
-            // NumberField sizes its inner SpinBox from `fieldWidth`, not from
-            // the component's own width.
-            fieldWidth: Style.space(96)
-            from: 1
-            to: 1440
-            value: root.customMinutes
-            foreground: root.popupText
-            fontFamily: root.fontFamily
-            onModified: function(v) { root.customMinutes = v }
-          }
-
-          Text {
-            anchors.verticalCenter: parent.verticalCenter
-            textFormat: Text.PlainText
-            text: root.tr("unit.min")
-            color: root.popupText
-            opacity: 0.72
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.bodySmall
-          }
-
-          Row {
-            id: modeRow
-            anchors.verticalCenter: parent.verticalCenter
-            width: parent.width - customField.width - Style.space(56)
-            spacing: Style.space(4)
-
-            Key {
-              width: (modeRow.width - Style.space(4)) / 2
-              text: root.tr("mode.relative")
-              role: root.timeModeAbsolute ? "ghost" : "selected"
-              ink: root.popupText
-              accentColor: root.popupAccent
-              surface: root.popupSurface
-              fontSize: Style.font.bodySmall
-              hasCursor: root.cursorActive && root.focusSection === "mode" && !root.timeModeAbsolute
-              onClicked: root.timeModeAbsolute = false
-            }
-
-            Key {
-              width: (modeRow.width - Style.space(4)) / 2
-              text: root.tr("mode.absolute")
-              role: root.timeModeAbsolute ? "selected" : "ghost"
-              ink: root.popupText
-              accentColor: root.popupAccent
-              surface: root.popupSurface
-              fontSize: Style.font.bodySmall
-              hasCursor: root.cursorActive && root.focusSection === "mode" && root.timeModeAbsolute
-              onClicked: root.timeModeAbsolute = true
-            }
-          }
-        }
-
-        TextField {
-          id: absTimeField
-          width: parent.width
-          visible: root.timeModeAbsolute
-          hasCursor: root.cursorActive && root.focusSection === "abs"
-          placeholderText: "14:30"
-          text: root.absoluteTime
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.body
-          color: root.popupText
-          background: BorderSurface {
-            color: "transparent"
-            borderSpec: Border.controlSpec("normal", root.popupText, root.accent)
-            radius: Style.cornerRadius
-          }
-          onTextChanged: root.absoluteTime = text
-          onAccepted: root.startTimer()
-        }
-
-        Text {
-          width: parent.width
-          visible: root.absTimeError !== ""
-          textFormat: Text.PlainText
-          text: root.absTimeError
-          color: root.popupUrgent
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.bodySmall
-        }
+        // ---- the dial and the wheel are the input: no presets, no field ----
 
         // ---- tray: the rare settings, opened in place ----
         Row {
@@ -1313,7 +1297,8 @@ Panel {
             model: [
               { key: "batteryGuard",      label: root.tr("adv.battery"), on: service.batteryGuard },
               { key: "quiet",             label: root.tr("adv.quiet"),   on: service.quiet },
-              { key: "waitForInhibitors", label: root.tr("adv.wait"),    on: service.waitForInhibitors }
+              { key: "waitForInhibitors", label: root.tr("adv.wait"),    on: service.waitForInhibitors },
+              { key: "ambientFade",       label: root.tr("adv.fade"),    on: service.ambientFade }
             ]
 
             delegate: Row {
@@ -1351,7 +1336,7 @@ Panel {
           Row {
             width: parent.width
             spacing: Style.space(8)
-            readonly property bool hot: root.cursorActive && root.focusSection === "advanced" && root.focusIndex === 3
+            readonly property bool hot: root.cursorActive && root.focusSection === "advanced" && root.focusIndex === 4
 
             MouseArea {
               width: parent.width
@@ -1464,6 +1449,7 @@ Panel {
       root.loadHistory()
       selectedAction = String(service.defaultAction)
       selectedQuick = ""
+      typedMinutes = ""
       timeModeAbsolute = false
       if (service.status !== "IDLE" && service.timeLeft > 0) {
         customMinutes = Math.max(1, Math.min(1440, Math.round(service.timeLeft / 60)))

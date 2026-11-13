@@ -22,6 +22,8 @@ STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/plugins/shutdown-timer"
 mkdir -p "$STATE_DIR"
 
 STATE_FILE="$STATE_DIR/state.json"
+FADE_BRIGHTNESS="$STATE_DIR/fade.brightness"
+FADE_VOLUME="$STATE_DIR/fade.volume"
 HISTORY_FILE="$STATE_DIR/history.tsv"
 SCHEDULES_FILE="$STATE_DIR/schedules.tsv"
 CONTROL_FILE="$STATE_DIR/control"
@@ -145,6 +147,88 @@ action_label() {
 }
 
 notify_title() { if [[ "$ui_lang" == "ru" ]]; then echo "Система"; else echo "System"; fi; }
+
+# ---------- smart conditions: user processes, webhook, ambient fade ----------
+
+# A process the user asked us to wait for (waitForProcesses, comma separated).
+# Exact names only (pgrep -x): a substring match would find the daemon's own
+# command line and wait forever.
+processes_holding() {
+  local list name
+  list=$(settings_field waitForProcesses "")
+  [[ -n "$list" ]] || return 1
+  local IFS=','
+  for name in $list; do
+    name="${name#"${name%%[![:space:]]*}"}"
+    name="${name%"${name##*[![:space:]]}"}"
+    [[ -z "$name" ]] && continue
+    local pid ppid
+    for pid in $(pgrep -x "$name" 2>/dev/null); do
+      # The daemon's own loop sleep has this exact name; it must never count
+      # as "the user's process is still running".
+      ppid=$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ')
+      [[ "$ppid" == "$$" ]] && continue
+      printf '%s' "$name"
+      return 0
+    done
+  done
+  return 1
+}
+
+# A webhook fired after the action, never blocking the timer: curl runs in the
+# background with a five second cap.
+run_webhook() {
+  local url
+  url=$(settings_field webhookUrl "")
+  [[ -n "$url" ]] || return 0
+  command -v curl >/dev/null || { log "webhook skipped: no curl"; return 0; }
+  local body
+  body=$(printf '{"plugin":"shutdown-timer","action":"%s","at":%s}' "$1" "$(date +%s)")
+  curl -m 5 -s -o /dev/null -X POST -H 'Content-Type: application/json' \
+    -d "$body" "$url" >>"$LOG_FILE" 2>&1 &
+  log "webhook sent for $1"
+}
+
+# Ambient fade: the last few minutes dim the screen and the sound, and a
+# cancel puts both back. Values are saved first, so a crash mid-fade still
+# leaves a file to restore from.
+fade_saved() { [[ -s "$FADE_BRIGHTNESS" || -s "$FADE_VOLUME" ]]; }
+
+start_fade() {
+  [[ "$(settings_field ambientFade false)" == "true" ]] || return 0
+  fade_saved && return 0
+  local cur max vol scaled
+  if command -v brightnessctl >/dev/null; then
+    cur=$(brightnessctl get 2>/dev/null) || cur=""
+    max=$(brightnessctl max 2>/dev/null) || max=""
+    if [[ "$cur" =~ ^[0-9]+$ && "$max" =~ ^[0-9]+$ ]] && (( max > 0 )); then
+      printf '%s' "$cur" >"$FADE_BRIGHTNESS"
+      brightnessctl set "$(( cur * 55 / 100 ))" >/dev/null 2>&1 || true
+    fi
+  fi
+  if command -v wpctl >/dev/null; then
+    vol=$(wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>/dev/null | awk '{print $2}')
+    if [[ -n "$vol" ]]; then
+      printf '%s' "$vol" >"$FADE_VOLUME"
+      scaled=$(awk -v v="$vol" 'BEGIN { printf "%.2f", v * 0.6 }')
+      wpctl set-volume @DEFAULT_AUDIO_SINK@ "$scaled" >/dev/null 2>&1 || true
+    fi
+  fi
+  log "ambient fade started"
+}
+
+restore_fade() {
+  fade_saved || return 0
+  if [[ -s "$FADE_BRIGHTNESS" ]] && command -v brightnessctl >/dev/null; then
+    brightnessctl set "$(<"$FADE_BRIGHTNESS")" >/dev/null 2>&1 || true
+  fi
+  if [[ -s "$FADE_VOLUME" ]] && command -v wpctl >/dev/null; then
+    wpctl set-volume @DEFAULT_AUDIO_SINK@ "$(<"$FADE_VOLUME")" >/dev/null 2>&1 || true
+  fi
+  rm -f "$FADE_BRIGHTNESS" "$FADE_VOLUME"
+  log "ambient fade restored"
+}
+
 notify_in()    { if [[ "$ui_lang" == "ru" ]]; then echo "через";   else echo "in";     fi; }
 
 # ---------- state: pure-bash read/write, atomic ----------
@@ -169,6 +253,9 @@ read_state() {
 state_line=""
 write_state() {
   local line
+  # The figure the UI reads is never negative, even while a watched process
+  # holds the timer past its deadline.
+  (( time_left < 0 )) && time_left=0
   schedule_count          # sets SCHEDULE_N (no subshell)
   dnd_state               # sets DND_STATE
   printf -v line '{"status":"%s","action":"%s","timeLeft":%d,"targetTime":%d,"mode":"%s","startTime":%d,"snoozeCount":%d,"reason":"%s","scheduleCount":%d,"dnd":%s,"pid":%d}' \
@@ -384,6 +471,7 @@ process_command() {
     cancel)
       read_state
       [[ "$status" == "IDLE" ]] || append_history "cancelled" "$action"
+      restore_fade
       set_state "IDLE" "" 0 0 "" 0 0 ""
       announced_early=false; announced_countdown=false
       close_overlay
@@ -422,6 +510,7 @@ process_command() {
         local now frozen
         now=$EPOCHSECONDS
         frozen=$((target_time - now)); (( frozen < 0 )) && frozen=0
+        restore_fade
         set_state "PAUSED" "$action" "$frozen" 0 "" "$start_time" "$snooze_count" ""
         close_overlay
       fi
@@ -576,6 +665,18 @@ while true; do
   case "$status" in
     ACTIVE)
       time_left=$((target_time - now))
+      # A watched process keeps the timer in ACTIVE instead of letting the
+      # countdown window open: the overlay is a promise, and we are not ready
+      # to keep it.
+      if (( time_left <= overlay_seconds )) && held=$(processes_holding); then
+        reason="waiting for: $held"
+        if (( ${proc_since:-0} == 0 )); then proc_since=$now; fi
+        if (( now - proc_since < 600 )); then
+          write_state
+          continue
+        fi
+        log "process $held still running after 10 min, acting anyway"
+      fi
       if (( time_left <= 0 )); then
         if (( loop_gap >= 5 )); then
           # the deadline passed while the machine was asleep: show the
@@ -592,6 +693,17 @@ while true; do
           reason="battery"
           log "battery guard: $action -> $local_action"
         fi
+        if held=$(processes_holding); then
+          reason="waiting for: $held"
+          if (( ${proc_since:-0} == 0 )); then proc_since=$now; fi
+          if (( now - proc_since < 600 )); then
+            write_state
+            continue
+          fi
+          log "process $held still running after 10 min, acting anyway"
+        else
+          proc_since=0
+        fi
         if held=$(inhibitors_holding); then
           reason="inhibited: $held"
           if (( ${held_since:-0} == 0 )); then held_since=$now; fi
@@ -606,7 +718,14 @@ while true; do
         append_history "executed" "$local_action"
         log "firing $local_action"
         do_action "$local_action"
+        run_webhook "$local_action"
+        restore_fade
         set_state "IDLE" "$local_action" 0 "$target_time" "" 0 0 ""
+      elif [[ "$(settings_field ambientFade false)" == "true" ]] \
+           && (( time_left <= $(num_setting fadeMinutes 5 1 30) * 60 )) \
+           && (( time_left > overlay_seconds )); then
+        start_fade
+        write_state
       elif (( time_left <= overlay_seconds )); then
         status="COUNTDOWN"
         write_state
@@ -633,10 +752,23 @@ while true; do
           summon_overlay
           continue
         fi
+        if held=$(processes_holding); then
+          reason="waiting for: $held"
+          if (( ${proc_since:-0} == 0 )); then proc_since=$now; fi
+          if (( now - proc_since < 600 )); then
+            write_state
+            continue
+          fi
+          log "process $held still running after 10 min, acting anyway"
+        else
+          proc_since=0
+        fi
         local_action=$(battery_guard_should_swap "$action")
         append_history "executed" "$local_action"
         log "firing $local_action (from $status)"
         do_action "$local_action"
+        run_webhook "$local_action"
+        restore_fade
         set_state "IDLE" "$local_action" 0 "$target_time" "" 0 0 ""
       else
         write_state

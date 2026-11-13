@@ -23,7 +23,13 @@ Item {
   // dragged value instead of the running one.
   property bool scrubbing: false
   property int scrubMinutes: 30
-  property int scrubMax: 1440
+  property int scrubMax: 720
+  // While a timer runs a drag is a delta from the current remainder, not an
+  // absolute angle: pulling past the head adds time instead of restarting the
+  // countdown from a new absolute value.
+  property bool reducedMotion: false
+  property bool deltaMode: false
+  property real baseMinutes: 30
 
   signal clicked()
   signal scrubStarted()
@@ -62,6 +68,17 @@ Item {
   opacity: root.paused ? 0.6 : 1.0
   Behavior on opacity { NumberAnimation { duration: 180 } }
 
+  // The last minute breathes: a 1.2 % scale and a stronger bloom, once per
+  // second, and nothing at all in IDLE or on a long timer.
+  readonly property bool alarm: root.running && !root.reducedMotion && root.fraction <= 0.02
+  SequentialAnimation on scale {
+    running: root.alarm
+    loops: Animation.Infinite
+    onRunningChanged: if (!running) root.scale = 1.0
+    NumberAnimation { to: 1.012; duration: 520; easing.type: Easing.InOutSine }
+    NumberAnimation { to: 1.0;   duration: 520; easing.type: Easing.InOutSine }
+  }
+
   // ---------- bloom: the ring sits in light, not on a flat fill ----------
   Shape {
     anchors.fill: parent
@@ -76,8 +93,8 @@ Item {
         focalX: root.width / 2
         focalY: root.height / 2
         focalRadius: 0
-        GradientStop { position: 0.0; color: Qt.rgba(root.tint.r, root.tint.g, root.tint.b, 0.16) }
-        GradientStop { position: 0.62; color: Qt.rgba(root.tint.r, root.tint.g, root.tint.b, 0.07) }
+        GradientStop { position: 0.0; color: Qt.rgba(root.tint.r, root.tint.g, root.tint.b, 0.30) }
+        GradientStop { position: 0.62; color: Qt.rgba(root.tint.r, root.tint.g, root.tint.b, 0.12) }
         GradientStop { position: 1.0; color: Qt.rgba(root.tint.r, root.tint.g, root.tint.b, 0.0) }
       }
       startX: root.width / 2
@@ -172,12 +189,30 @@ Item {
 
   // The angle under a point, in minutes. Public so a script can prove the
   // gesture without a pointer.
-  function minutesAt(px, py) {
+  function angleAt(px, py) {
     var dx = px - width / 2
     var dy = py - height / 2
     var deg = Math.atan2(dy, dx) * 180 / Math.PI + 90
     if (deg < 0) deg += 360
-    return Math.round(deg / 360 * root.scrubMax)
+    return deg
+  }
+
+  function minutesAt(px, py) {
+    return Math.round(angleAt(px, py) / 360 * root.scrubMax)
+  }
+
+  // Signed shortest arc between two angles, in minutes.
+  function deltaMinutes(fromDeg, toDeg) {
+    var d = toDeg - fromDeg
+    while (d > 180) d -= 360
+    while (d < -180) d += 360
+    return d / 360 * root.scrubMax
+  }
+
+  // Snap to five minutes: a 720-minute dial is two minutes per degree, which
+  // is unusable without a grid.
+  function snapped(m) {
+    return Math.round(m / 5) * 5
   }
 
   // ---------- the ring as an input ----------
@@ -193,9 +228,11 @@ Item {
     property bool wasDrag: false
     property real pressX: 0
     property real pressY: 0
+    property real pressAngle: 0
 
     onPressed: function(mouse) {
       pressX = mouse.x; pressY = mouse.y
+      pressAngle = root.angleAt(mouse.x, mouse.y)
       active = false
       wasDrag = false
     }
@@ -211,7 +248,13 @@ Item {
         root.scrubbing = true
         root.scrubStarted()
       }
-      var m = root.minutesAt(mouse.x, mouse.y)
+      var raw
+      if (root.deltaMode) {
+        raw = root.baseMinutes + root.deltaMinutes(pressAngle, root.angleAt(mouse.x, mouse.y))
+      } else {
+        raw = root.minutesAt(mouse.x, mouse.y)
+      }
+      var m = Math.max(1, Math.min(root.scrubMax, root.snapped(raw)))
       root.scrubMinutes = m
       root.scrubbed(m)
     }

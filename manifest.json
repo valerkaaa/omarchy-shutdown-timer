@@ -42,7 +42,11 @@
       "batteryThreshold": 20,
       "quiet": false,
       "tickSound": false,
-      "reducedMotion": false
+      "reducedMotion": false,
+      "ambientFade": false,
+      "fadeMinutes": 5,
+      "waitForProcesses": "",
+      "webhookUrl": ""
     },
     "schema": [
       {
@@ -156,6 +160,36 @@
         "label": "Reduce motion",
         "defaultValue": false,
         "description": "Disable the pulsing icon and the progress-bar easing."
+      },
+      {
+        "key": "ambientFade",
+        "type": "boolean",
+        "label": "Ambient fade before the action",
+        "defaultValue": false,
+        "description": "In the last minutes, dim the screen and lower the volume; a cancel restores both."
+      },
+      {
+        "key": "fadeMinutes",
+        "type": "integer",
+        "label": "Ambient fade lead (minutes)",
+        "min": 1,
+        "max": 30,
+        "step": 1,
+        "defaultValue": 5
+      },
+      {
+        "key": "waitForProcesses",
+        "type": "string",
+        "label": "Wait for processes (comma separated names)",
+        "defaultValue": "",
+        "description": "The action waits up to 10 minutes while any of these processes is running (exact names, e.g. blender,ffmpeg)."
+      },
+      {
+        "key": "webhookUrl",
+        "type": "string",
+        "label": "Webhook URL (POST after the action)",
+        "defaultValue": "",
+        "description": "Optional. A JSON body with plugin, action and timestamp is POSTed with a 5 second cap."
       }
     ]
   },

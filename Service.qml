@@ -51,6 +51,10 @@ Item {
   readonly property bool batteryGuard: boolSetting("batteryGuard", false)
   readonly property int batteryThreshold: intSetting("batteryThreshold", 20, 5, 50)
   readonly property bool waitForInhibitors: boolSetting("waitForInhibitors", false)
+  readonly property bool ambientFade: boolSetting("ambientFade", false)
+  readonly property int fadeMinutes: intSetting("fadeMinutes", 5, 1, 30)
+  readonly property string waitForProcesses: String(setting("waitForProcesses", ""))
+  readonly property string webhookUrl: String(setting("webhookUrl", ""))
   readonly property bool tickSound: boolSetting("tickSound", false)
   readonly property bool reducedMotion: boolSetting("reducedMotion", false)
 
@@ -127,6 +131,10 @@ Item {
         batteryGuard: batteryGuard,
         batteryThreshold: batteryThreshold,
         waitForInhibitors: waitForInhibitors,
+        ambientFade: ambientFade,
+        fadeMinutes: fadeMinutes,
+        waitForProcesses: waitForProcesses,
+        webhookUrl: webhookUrl,
         reducedMotion: reducedMotion
       }) +
       "\nSETTINGSEOF"]
@@ -144,6 +152,10 @@ Item {
         batteryGuard: batteryGuard,
         batteryThreshold: batteryThreshold,
         waitForInhibitors: waitForInhibitors,
+        ambientFade: ambientFade,
+        fadeMinutes: fadeMinutes,
+        waitForProcesses: waitForProcesses,
+        webhookUrl: webhookUrl,
         reducedMotion: reducedMotion
       }) +
       "\nSETTINGSEOF"]
@@ -306,6 +318,10 @@ Item {
   onOverlaySecondsChanged: writeSettings()
   onSnoozeMinsChanged: writeSettings()
   onQuietChanged: writeSettings()
+  onAmbientFadeChanged: writeSettings()
+  onFadeMinutesChanged: writeSettings()
+  onWaitForProcessesChanged: writeSettings()
+  onWebhookUrlChanged: writeSettings()
   onBatteryGuardChanged: writeSettings()
   onBatteryThresholdChanged: writeSettings()
   onWaitForInhibitorsChanged: writeSettings()

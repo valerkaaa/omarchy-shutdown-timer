@@ -44,6 +44,8 @@ Item {
   // to happen" at 16 px, with no extra element on the bar. -1 means "no
   // progress to show" and keeps the canonical 70° opening.
   property real fraction: -1
+  // 0..1 while the icon is held down: the cancel gesture fills this arc.
+  property real holdProgress: 0
   // "reduce motion" honouring: the shell exposes it; a static mark otherwise
   property bool animate: true
   property bool reducedMotion: false
@@ -121,6 +123,29 @@ Item {
         startX: 12 * root.unit
         startY: 3 * root.unit
         PathLine { x: 12 * root.unit; y: 13.2 * root.unit }
+      }
+    }
+
+    // ---- hold-to-cancel: an arc that fills while the icon is held ----
+    Shape {
+      anchors.fill: parent
+      visible: root.holdProgress > 0.001
+      antialiasing: true
+      preferredRendererType: Shape.CurveRenderer
+
+      ShapePath {
+        strokeColor: root.color
+        strokeWidth: Math.max(1.4, 1.25 * root.unit)
+        fillColor: "transparent"
+        capStyle: ShapePath.RoundCap
+        PathAngleArc {
+          centerX: 12 * root.unit
+          centerY: 12 * root.unit
+          radiusX: root.ring + 2.1 * root.unit
+          radiusY: root.ring + 2.1 * root.unit
+          startAngle: -90
+          sweepAngle: 359.9 * Math.max(0, Math.min(1, root.holdProgress))
+        }
       }
     }
 

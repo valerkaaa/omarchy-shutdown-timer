@@ -10,6 +10,43 @@ The spec lives in `TZ-v3.md`; it was assembled from five independent reviews
 (design, architecture, ideas, critique, second opinion) and the measurements in
 `tools/acceptance.sh`.
 
+### Added — stage 4: the HUD dial and smart conditions
+
+- **The ring is a HUD now.** Its colour is interpolated from `accent` to
+  `urgent` by how much time is left, the bloom is stronger, and inside the last
+  minute the whole dial breathes (1.2 %, 1 s) unless reduced motion is on. The
+  centre carries the action's own glyph above the figure, and the candle is a
+  burnt stump in IDLE instead of a whole unlit candle.
+- **Dragging while a timer runs is a delta**, not an absolute angle: the
+  caption says `+20 мин к выключению` and the deadline moves instead of the
+  countdown restarting from a new value.
+- **The preset row, the number field and the relative/absolute switch are
+  gone.** The dial covers 1–720 in one gesture, the wheel covers ±5 from the
+  bar, and digits typed on the popup set the minutes directly (`4` `5` → 45).
+- **Hold the bar icon for 500 ms to cancel**: an arc fills around the mark
+  while the hold lasts, and a short click still opens the popup. Right-click
+  opens it too (the old right-click-cancel was invisible and conflicted).
+- **`waitForProcesses`** — the action waits up to 10 minutes while any named
+  process runs (exact names; the daemon's own loop sleep is excluded), and the
+  state carries `waiting for: <name>`.
+- **`webhookUrl`** — a POST with `{"plugin","action","at"}` after the action,
+  capped at 5 seconds, in the background.
+- **`ambientFade`** (off by default) — in the last `fadeMinutes` the screen
+  dims to 55 % and the sink volume drops to 60 %, both restored on cancel or
+  pause; the original values are saved first, so a crash still leaves a file
+  to restore from.
+
+### Verified
+
+- `waitForProcesses`: with a `sleep` running, a 1-minute timer stayed
+  `ACTIVE` / `waiting for: sleep` past its deadline and fired once the process
+  ended.
+- Webhook: a local HTTP server received
+  `{"plugin":"shutdown-timer","action":"poweroff","at":…}`.
+- Ambient fade: brightness 96000 → 52800 during the window, back to 96000 on
+  cancel.
+- Digits: `4` `5` → `customMinutes: 45`; `tools/acceptance.sh` 22/22.
+
 ### Added — stage 3: two gestures the ecosystem does not have
 
 - **A wheel on the bar icon sets the time without opening the popup.** ±5
