@@ -41,7 +41,7 @@ Item {
     return ink
   }
 
-  implicitHeight: primary ? Style.space(34) : Style.space(28)
+  implicitHeight: primary ? Style.space(40) : Style.space(28)
   implicitWidth: label.implicitWidth + Style.space(16)
   height: implicitHeight
 
@@ -54,25 +54,35 @@ Item {
       if (primary) return Qt.lighter(root.accentColor, 1.25)
       if (root.selected) return root.accentColor
       if (root.danger) return Qt.rgba(root.dangerColor.r, root.dangerColor.g, root.dangerColor.b, 0.55)
-      return Qt.rgba(root.ink.r, root.ink.g, root.ink.b, mouse.containsMouse ? 0.34 : 0.16)
+      return Qt.rgba(root.ink.r, root.ink.g, root.ink.b, mouse.containsMouse ? 0.26 : 0.13)
     }
 
     gradient: Gradient {
       orientation: Gradient.Vertical
+      // Primary: three stops, light at the top and deep at the base, the
+      // gradient face the focus plugin uses for its one action.
       GradientStop {
         position: 0.0
         color: {
-          if (root.primary) return Qt.lighter(root.accentColor, 1.18)
-          if (root.selected) return Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.20)
-          return Qt.lighter(root.surface, 1.10)
+          if (root.primary) return Qt.lighter(root.accentColor, 1.32)
+          if (root.selected) return Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.24)
+          return Qt.rgba(root.ink.r, root.ink.g, root.ink.b, 0.075)
+        }
+      }
+      GradientStop {
+        position: 0.45
+        color: {
+          if (root.primary) return root.accentColor
+          if (root.selected) return Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.16)
+          return Qt.rgba(root.ink.r, root.ink.g, root.ink.b, 0.055)
         }
       }
       GradientStop {
         position: 1.0
         color: {
-          if (root.primary) return Qt.darker(root.accentColor, 1.08)
+          if (root.primary) return Qt.darker(root.accentColor, 1.12)
           if (root.selected) return Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.10)
-          return Qt.darker(root.surface, 1.06)
+          return Qt.rgba(root.ink.r, root.ink.g, root.ink.b, 0.04)
         }
       }
     }

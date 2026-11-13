@@ -54,6 +54,7 @@ Item {
   property string action: "poweroff"
   property int timeLeft: 0
   property int targetTime: 0
+  property int startTime: 0
   property int totalSeconds: 30
   property int tick: 0
 
@@ -75,6 +76,16 @@ Item {
   function open(payloadJson) {
     root.opened = true
     root.refresh()
+    // A window summoned with nothing to count down is a dead modal: close it
+    // as soon as the state says IDLE instead of drawing "00:00".
+    idleGuard.restart()
+  }
+
+  Timer {
+    id: idleGuard
+    interval: 260
+    repeat: false
+    onTriggered: if (root.opened && root.status === "IDLE") root.close()
   }
 
   function close() {
@@ -111,18 +122,27 @@ Item {
 
   // ---------- computed ----------
   readonly property int displayedTime: {
-    if (root.status !== "COUNTDOWN" || !root.loaded) return 0
+    if (!root.loaded) return 0
     root.tick  // dependency: re-eval every tick
-    if (root.targetTime > 0) {
-      return Math.max(0, root.targetTime - Math.floor(Date.now() / 1000))
+    if (root.status === "COUNTDOWN" || root.status === "COUNTDOWN_SCHED") {
+      if (root.targetTime > 0) return Math.max(0, root.targetTime - Math.floor(Date.now() / 1000))
+      return root.timeLeft
+    }
+    // Shown from the bar while the timer is still ACTIVE: read the real
+    // remainder instead of the old "00:00" first frame.
+    if (root.status === "ACTIVE" || root.status === "PAUSED") {
+      if (root.targetTime > 0) return Math.max(0, root.targetTime - Math.floor(Date.now() / 1000))
+      return root.timeLeft
     }
     return root.timeLeft
   }
 
   // 0 → just summoned, 1 → fired; drives the progress bar
   readonly property real remainingFraction: {
-    if (root.totalSeconds <= 0) return 0
-    return Model.clamp(root.displayedTime / root.totalSeconds, 0, 1)
+    var total = root.targetTime - root.startTime
+    if (!(total > 0)) total = root.totalSeconds
+    if (total <= 0) return 0
+    return Model.clamp(root.displayedTime / total, 0, 1)
   }
 
   // ---------- polling state.json ----------
@@ -163,6 +183,7 @@ Item {
           root.action = String(parsed.action || "poweroff")
           root.timeLeft = typeof parsed.timeLeft === "number" ? parsed.timeLeft : 0
           root.targetTime = typeof parsed.targetTime === "number" ? parsed.targetTime : 0
+          root.startTime = typeof parsed.startTime === "number" ? parsed.startTime : 0
           if (root.totalSeconds <= 0 && root.timeLeft > 0) root.totalSeconds = root.timeLeft
         }
       }
@@ -214,16 +235,47 @@ Item {
     }
 
     // ---------- card ----------
-    BorderSurface {
+    Rectangle {
       id: card
       anchors.centerIn: parent
       // parent is the fullscreen PanelWindow; root is an unsized Item and its
       // width is 0, so measuring against it collapsed the card to nothing.
       width: Math.min(Style.space(560), parent.width * 0.8)
       height: cardColumn.implicitHeight + Style.space(96)
-      color: root.popupBg
-      borderSpec: Commons.Border.surfaceSpec("popups", "border", root.popupBorder, Math.max(1, Style.space(2)))
-      radius: Style.cornerRadius
+      radius: Math.round(Style.cornerRadius * 1.8)
+      border.width: 1
+      border.color: Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.30)
+      // The first frame has no state yet; drawing it would show "00:00" for a
+      // moment, which reads as "it is firing now".
+      opacity: root.loaded ? 1 : 0
+      Behavior on opacity { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+      // Same lit plate as the popup's hero: light at the top, deep at the
+      // base, and the accent washing through it.
+      gradient: Gradient {
+        GradientStop { position: 0.0; color: Qt.lighter(root.popupBg, 1.14) }
+        GradientStop { position: 0.55; color: root.popupBg }
+        GradientStop { position: 1.0; color: Qt.darker(root.popupBg, 1.16) }
+      }
+
+      Rectangle {
+        anchors.fill: parent
+        radius: card.radius
+        gradient: Gradient {
+          GradientStop { position: 0.0; color: Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.16) }
+          GradientStop { position: 0.6; color: Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.03) }
+          GradientStop { position: 1.0; color: Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.08) }
+        }
+      }
+
+      Rectangle {
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.margins: Style.space(4)
+        height: 1
+        radius: 1
+        color: Qt.rgba(1, 1, 1, 0.28)
+      }
 
       Column {
         id: cardColumn
@@ -258,101 +310,91 @@ Item {
           horizontalAlignment: Text.AlignHCenter
         }
 
-        // progress: drains as the deadline approaches
+        // progress: a gauge, not a hairline — it drains as the deadline nears
         Item {
+          id: gauge
           width: parent.width
-          height: Math.max(4, Style.space(4))
+          height: Math.max(8, Style.space(8))
+          readonly property color tint: root.displayedTime <= 10 ? root.urgent : root.accent
 
           Rectangle {
             anchors.fill: parent
             radius: height / 2
-            color: root.foreground
-            opacity: 0.15
+            color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.12)
+            border.width: 1
+            border.color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.10)
           }
 
           Rectangle {
-            width: parent.width * root.remainingFraction
+            id: gaugeFill
+            width: Math.max(height, parent.width * root.remainingFraction)
             height: parent.height
             radius: height / 2
-            color: root.displayedTime <= 10 ? root.urgent : root.accent
+            gradient: Gradient {
+              orientation: Gradient.Horizontal
+              GradientStop { position: 0.0; color: Qt.lighter(gauge.tint, 1.25) }
+              GradientStop { position: 1.0; color: gauge.tint }
+            }
+            color: gauge.tint
             Behavior on width {
               enabled: !root.reducedMotion
               NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
             }
+
+            // the lit head: the same pip the dial carries
+            Rectangle {
+              height: Math.max(6, gauge.height + 2)
+              width: height
+              radius: width / 2
+              anchors.verticalCenter: parent.verticalCenter
+              x: parent.width - width
+              color: Qt.lighter(parent.color, 1.35)
+              border.width: 1
+              border.color: Qt.rgba(1, 1, 1, 0.45)
+            }
           }
         }
 
-        // actions: cancel is primary, snooze secondary
+        // actions: cancel is a filled key, snooze a quiet pill — the same two
+        // voices the popup uses.
         Row {
           anchors.horizontalCenter: parent.horizontalCenter
           spacing: Style.space(10)
 
-          MouseArea {
+          Key {
             id: cancelBtn
-            width: cancelLabel.implicitWidth + Style.space(36)
-            height: cancelLabel.implicitHeight + Style.space(18)
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
+            width: Math.max(Style.space(160), parent.width * 0.42)
+            text: root.tr("overlay.cancel")
+            role: "primary"
+            accentColor: root.urgent
+            ink: root.foreground
+            surface: root.popupBg
+            fontSize: Style.font.body
             onClicked: root.cancel()
-
-            Text {
-              id: cancelLabel
-              anchors.centerIn: parent
-              text: root.tr("overlay.cancel")
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.bodySmall
-              color: root.foreground
-            }
-
-            Rectangle {
-              anchors.fill: parent
-              anchors.margins: -Style.space(2)
-              color: "transparent"
-              border.width: 1
-              border.color: root.foreground
-              radius: Style.space(4)
-              visible: cancelBtn.containsMouse
-            }
           }
 
-          MouseArea {
-            id: snoozeBtn
-            width: snoozeLabel.implicitWidth + Style.space(28)
-            height: cancelBtn.height
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
+          Key {
+            width: Math.max(Style.space(120), parent.width * 0.3)
+            text: root.tr("overlay.snooze")
+            role: "ghost"
+            ink: root.foreground
+            accentColor: root.accent
+            surface: root.popupBg
+            fontSize: Style.font.bodySmall
             onClicked: root.snooze(5)
-
-            Text {
-              id: snoozeLabel
-              anchors.centerIn: parent
-              text: root.tr("overlay.snooze")
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.bodySmall
-              color: root.muted
-            }
-
-            Rectangle {
-              anchors.fill: parent
-              anchors.margins: -Style.space(2)
-              color: "transparent"
-              border.width: 1
-              border.color: root.muted
-              radius: Style.space(4)
-              visible: snoozeBtn.containsMouse
-            }
           }
         }
 
-        // hint so the escape hatch is discoverable during the countdown
+        // The escape hatch has to be discoverable during the countdown, and at
+        // 11 px, not the 9 px it used to be.
         Text {
           width: parent.width
           text: root.tr("overlay.hint")
           textFormat: Text.PlainText
           color: root.foreground
-          opacity: 0.45
+          opacity: 0.62
           font.family: root.fontFamily
-          font.pixelSize: Style.font.bodySmall - 2
+          font.pixelSize: Style.font.bodySmall
           horizontalAlignment: Text.AlignHCenter
           elide: Text.ElideRight
         }

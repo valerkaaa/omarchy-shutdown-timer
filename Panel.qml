@@ -138,12 +138,39 @@ Panel {
   // instead of sitting between the user and the launch key.
   property string trayOpen: ""
 
-  // How much wax is left on the hero candle: 1 in IDLE (whole, unlit), the
-  // real remainder while a timer runs.
+  // True while the dial is being dragged: the hero then shows the value
+  // under the finger instead of the running remainder.
+  property bool scrubbing: false
+
+  // What the dial is full of: the dragged value while scrubbing, the whole
+  // proposed time in IDLE, the real remainder while a timer runs.
   readonly property real heroFraction: {
+    if (root.scrubbing) return Math.max(0, Math.min(1, root.customMinutes / 720))
     if (service.status === "IDLE") return 1
     var f = root.remainingFraction
     return f < 0 ? 1 : f
+  }
+
+  // The one figure on the dial. In IDLE it is the time that would be set,
+  // not a sentence: the number is the object, the caption explains it.
+  readonly property string heroText: {
+    if (root.scrubbing || service.status === "IDLE")
+      return Model.formatTime(Math.max(1, Math.round(root.customMinutes)) * 60)
+    return Model.formatTime(service.timeLeft)
+  }
+
+  readonly property string heroCaption: {
+    if (service.status === "IDLE") return root.tr("state.none")
+    if (service.status === "PAUSED") return root.tr("state.paused", Model.actionLabel(service.action, language))
+    if (service.status === "COUNTDOWN" || service.status === "COUNTDOWN_SCHED")
+      return root.tr("state.countdown", Model.actionLabel(service.action, language))
+    return root.tr("state.active", Model.actionLabel(service.action, language))
+  }
+
+  // One line under the dial: what the ring does, or how to get out.
+  readonly property string heroHint: {
+    if (service.status === "IDLE") return root.tr("state.noneHint")
+    return root.tr("hero.scrub")
   }
 
   // ---------- keyboard cursor (TZ 12: everything reachable by keyboard) ----------
@@ -536,6 +563,20 @@ Panel {
     // once these come back clean.
     // Keyboard-cursor state, so a wtype-driven test can assert navigation
     // without relying on pixels.
+    // The dial's angle math, so the scrub gesture can be proven from a script
+    // without a pointer: feed it a point in the ring's coordinates.
+    function debugDial(point: string): string {
+      var parts = String(point || "").split(",")
+      var x = Number(parts[0] || 0)
+      var y = Number(parts[1] || 0)
+      try {
+        var m = dial.minutesAt(x, y)
+        return JSON.stringify({ minutes: m, max: dial.scrubMax, x: x, y: y, size: Math.round(dial.width) })
+      } catch (e) {
+        return JSON.stringify({ error: String(e) })
+      }
+    }
+
     function debugCursor(): string {
       return JSON.stringify({
         cursorActive: root.cursorActive,
@@ -776,105 +817,142 @@ Panel {
           }
         }
 
-        // ---- hero: the candle, the figure, the escape hatches ----
-        // A recessed well: the candle stands in it and the figure is the
-        // largest object on the surface. The icon is no longer allowed to
-        // out-weigh the number (it did: 46 px of ink against 31).
+        // ---- hero: the dial, the figure, the escape hatches ----
+        // A lit plate with the accent in it (top light, deep base), a minute
+        // scale around the edge and the figure on the dial's own axis. The
+        // ring is also the input: drag it to set the minutes.
         Rectangle {
           id: hero
           width: parent.width
-          implicitHeight: heroRow.implicitHeight + Style.space(14)
-          radius: Math.round(Style.cornerRadius * 1.5)
-          color: Qt.darker(root.popupSurface, 1.10)
+          implicitHeight: heroColumn.implicitHeight + Style.space(20)
+          radius: Math.round(Style.cornerRadius * 1.8)
           border.width: 1
-          border.color: Qt.rgba(root.popupText.r, root.popupText.g, root.popupText.b, 0.09)
+          border.color: Qt.rgba(root.popupAccent.r, root.popupAccent.g, root.popupAccent.b, 0.24)
 
-          Row {
-            id: heroRow
+          gradient: Gradient {
+            GradientStop { position: 0.0; color: Qt.lighter(root.popupSurface, 1.16) }
+            GradientStop { position: 0.55; color: root.popupSurface }
+            GradientStop { position: 1.0; color: Qt.darker(root.popupSurface, 1.14) }
+          }
+
+          // The accent wash: the plate is not grey, it belongs to the state.
+          Rectangle {
+            anchors.fill: parent
+            radius: hero.radius
+            gradient: Gradient {
+              GradientStop { position: 0.0; color: Qt.rgba(root.popupAccent.r, root.popupAccent.g, root.popupAccent.b, 0.20) }
+              GradientStop { position: 0.6; color: Qt.rgba(root.popupAccent.r, root.popupAccent.g, root.popupAccent.b, 0.05) }
+              GradientStop { position: 1.0; color: Qt.rgba(root.popupAccent.r, root.popupAccent.g, root.popupAccent.b, 0.10) }
+            }
+          }
+
+          // One-pixel specular along the top edge: the line that makes the
+          // plate read as lit rather than filled.
+          Rectangle {
             anchors.left: parent.left
             anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
-            anchors.leftMargin: Style.space(9)
-            anchors.rightMargin: Style.space(9)
-            spacing: Style.space(10)
+            anchors.top: parent.top
+            anchors.margins: Style.space(3)
+            height: 1
+            radius: 1
+            color: Qt.rgba(1, 1, 1, 0.30)
+          }
 
-            CandleTimer {
-              id: heroIcon
-              anchors.verticalCenter: parent.verticalCenter
-              candleHeight: Math.round(heroFigure.font.pixelSize * 1.35)
-              fraction: root.heroFraction
-              lit: service.status !== "IDLE"
-              wax: root.popupText
-              flame: (service.status === "COUNTDOWN" || service.status === "COUNTDOWN_SCHED")
-                     ? root.popupUrgent : root.popupAccent
-              reducedMotion: service.reducedMotion
-            }
+          Column {
+            id: heroColumn
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.top: parent.top
+            anchors.topMargin: Style.space(12)
+            spacing: Style.space(8)
 
-            Column {
-              id: heroLabels
-              width: parent.width - heroIcon.width - Style.space(10)
-              spacing: Style.space(2)
-              anchors.verticalCenter: parent.verticalCenter
+            Item {
+              id: dialBox
+              width: Math.min(hero.width - Style.space(24), Style.space(200))
+              height: width
+              anchors.horizontalCenter: parent.horizontalCenter
 
-              // Engraved figure: the same glyphs one pixel down in the
-              // surface shade, so the number sits in the plate instead of on
-              // top of it. One container keeps both copies aligned without
-              // binding either one's geometry to the other.
-              Item {
-                width: parent.width
-                height: Math.round(heroFigure.font.pixelSize * 1.22)
-
-                Text {
-                  anchors.fill: parent
-                  anchors.topMargin: 1
-                  textFormat: Text.PlainText
-                  text: heroFigure.text
-                  color: Qt.darker(root.popupSurface, 1.45)
-                  font.family: heroFigure.font.family
-                  font.pixelSize: heroFigure.font.pixelSize
-                  font.bold: true
-                  elide: Text.ElideRight
-                  visible: service.status !== "IDLE"
+              HeroRing {
+                id: dial
+                anchors.fill: parent
+                fraction: root.heroFraction
+                running: service.status !== "IDLE"
+                paused: service.status === "PAUSED"
+                tint: (service.status === "COUNTDOWN" || service.status === "COUNTDOWN_SCHED")
+                      ? root.popupUrgent : root.popupAccent
+                ink: root.popupText
+                scrubbing: root.scrubbing
+                scrubMinutes: root.customMinutes
+                scrubMax: 720
+                onScrubbed: function(m) {
+                  root.scrubbing = true
+                  root.customMinutes = Math.max(1, m)
+                  root.selectedQuick = ""
                 }
+                onScrubFinished: function(m) {
+                  root.customMinutes = Math.max(1, m)
+                  root.scrubbing = false
+                }
+              }
+
+              Column {
+                anchors.centerIn: parent
+                spacing: Style.space(2)
 
                 Text {
                   id: heroFigure
-                  anchors.fill: parent
+                  anchors.horizontalCenter: parent.horizontalCenter
                   textFormat: Text.PlainText
-                  text: service.status === "IDLE"
-                        ? root.tr("state.none")
-                        : Model.formatTime(service.timeLeft)
+                  text: root.heroText
                   color: (service.status === "COUNTDOWN" || service.status === "COUNTDOWN_SCHED")
                          ? root.popupUrgent : root.popupText
-                  font.family: service.status === "IDLE" ? root.fontFamily : "monospace"
-                  font.pixelSize: service.status === "IDLE"
-                                  ? Style.font.subtitle
-                                  : Math.max(44, Math.round(column.width * 0.15))
+                  font.family: "monospace"
+                  font.pixelSize: Math.max(40, Math.round(dialBox.width * 0.25))
                   font.bold: true
                   elide: Text.ElideRight
                 }
-              }
 
-              Text {
-                width: parent.width
-                textFormat: Text.PlainText
-                text: {
-                  if (service.status === "IDLE") return root.tr("state.noneHint")
-                  if (service.status === "PAUSED") return root.tr("state.paused", Model.actionLabel(service.action, language))
-                  if (service.status === "COUNTDOWN") return root.tr("state.countdown", Model.actionLabel(service.action, language))
-                  return root.tr("state.active", Model.actionLabel(service.action, language))
+                CandleTimer {
+                  id: heroCandle
+                  anchors.horizontalCenter: parent.horizontalCenter
+                  candleHeight: Math.round(dialBox.width * 0.22)
+                  fraction: root.heroFraction
+                  lit: service.status !== "IDLE"
+                  wax: root.popupText
+                  flame: (service.status === "COUNTDOWN" || service.status === "COUNTDOWN_SCHED")
+                         ? root.popupUrgent : root.popupAccent
+                  reducedMotion: service.reducedMotion
                 }
-                color: root.popupText
-                opacity: 0.72
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.bodySmall
-                elide: Text.ElideRight
+
+                Text {
+                  id: heroLabels
+                  anchors.horizontalCenter: parent.horizontalCenter
+                  textFormat: Text.PlainText
+                  text: root.heroCaption
+                  color: root.popupText
+                  opacity: 0.78
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.bodySmall
+                  elide: Text.ElideRight
+                }
               }
+            }
+
+            Text {
+              width: hero.width - Style.space(28)
+              anchors.horizontalCenter: parent.horizontalCenter
+              horizontalAlignment: Text.AlignHCenter
+              textFormat: Text.PlainText
+              text: root.heroHint
+              color: root.popupText
+              opacity: 0.62
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.bodySmall
+              elide: Text.ElideRight
             }
           }
         }
 
-        // The three escape hatches, as full-width keys under the well: at
+        // The three escape hatches, as full-width keys under the plate: at
         // 11 px a bare glyph is a guess, a word is not.
         Row {
           id: heroButtons

@@ -52,7 +52,7 @@ Item {
   readonly property real ring: 8.0 * unit
   // A hairline disappears on a 1x screen, a fat stroke closes the ring's
   // counter: the band is 1.4 units, clamped so it never drops under a pixel.
-  readonly property real stroke: Math.max(1.35, 1.55 * unit)
+  readonly property real stroke: Math.max(1.35, 1.55 * unit * root.strokeBoost)
 
   // The canonical mark opens 70° at twelve o'clock. While a timer runs the
   // opening closes down to 8°, always centred on the top, so the ring itself
@@ -61,6 +61,9 @@ Item {
   readonly property real gapDeg: root.fraction < 0 ? 70 : 8 + 62 * clampedFraction
   readonly property real sweepDeg: 360 - gapDeg
   readonly property real startDeg: 90 - sweepDeg / 2
+  // The band thickens as the ring closes: at 16 px a 0.7 px gap alone does
+  // not read, but a mark that visibly gains weight does.
+  readonly property real strokeBoost: root.fraction < 0 ? 1 : 1 + 0.4 * (1 - clampedFraction)
 
   width: iconSize
   height: iconSize
