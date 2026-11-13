@@ -55,7 +55,6 @@ Item {
   readonly property int fadeMinutes: intSetting("fadeMinutes", 5, 1, 30)
   readonly property string waitForProcesses: String(setting("waitForProcesses", ""))
   readonly property string webhookUrl: String(setting("webhookUrl", ""))
-  readonly property bool tickSound: boolSetting("tickSound", false)
   readonly property bool reducedMotion: boolSetting("reducedMotion", false)
 
   readonly property var presetList: {

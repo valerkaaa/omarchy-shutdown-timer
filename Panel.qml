@@ -208,8 +208,38 @@ Panel {
     return root.tr("state.active", Model.actionLabel(service.action, language))
   }
 
+  // A snooze past the limit is refused by the daemon without an error on the
+  // wire; the panel notices the deadline did not move and says so, instead of
+  // looking like nothing was pressed.
+  property bool snoozeRefused: false
+  property real snoozeBefore: 0
+  Timer {
+    id: snoozeCheck
+    interval: 600
+    repeat: false
+    onTriggered: {
+      if (Number(service.targetTime) <= root.snoozeBefore) {
+        root.snoozeRefused = true
+        snoozeRefusedTimer.restart()
+      }
+    }
+  }
+  Timer {
+    id: snoozeRefusedTimer
+    interval: 2600
+    repeat: false
+    onTriggered: root.snoozeRefused = false
+  }
+
+  function snoozeNow() {
+    root.snoozeBefore = Number(service.targetTime)
+    service.snooze(service.snoozeMins)
+    snoozeCheck.restart()
+  }
+
   // One line under the dial: what the ring does, or how to get out.
   readonly property string heroHint: {
+    if (root.snoozeRefused) return root.tr("hero.snoozeRefused")
     if (service.status === "IDLE") return root.tr("state.noneHint")
     return root.tr("hero.scrub")
   }
@@ -290,7 +320,7 @@ Panel {
     ensureCursor()
     if (focusSection === "hero") {
       if (focusIndex === 0) service.status === "PAUSED" ? service.resume() : service.pause()
-      else if (focusIndex === 1) service.snooze(5)
+      else if (focusIndex === 1) root.snoozeNow()
       else service.cancel()
     } else if (focusSection === "tray") {
       var keys = ["repeat", "more", "history"]
@@ -762,6 +792,11 @@ Panel {
       holdTimer.restart()
     }
 
+    // A click is handled by onClicked, the same path the right button already
+    // used: opening the panel from onReleased left the press unclaimed by the
+    // popup manager, so the left button silently did nothing.
+    property bool holdConsumed: false
+
     onReleased: function(mouse) {
       if (mouse.button !== Qt.LeftButton) return
       var fired = holdTimer.fired
@@ -769,16 +804,18 @@ Panel {
       holdFill.stop()
       root.holding = false
       root.holdProgress = 0
-      if (fired) { service.cancel(); return }
-      root.toggle()
+      holdConsumed = fired
+      if (fired) service.cancel()
     }
 
     onCanceled: {
       holdTimer.stop(); holdFill.stop(); root.holding = false; root.holdProgress = 0
+      holdConsumed = false
     }
 
     onClicked: function(mouse) {
-      if (mouse.button === Qt.RightButton) root.toggle()
+      if (holdConsumed) { holdConsumed = false; return }
+      root.toggle()
     }
   }
 
@@ -959,7 +996,8 @@ Panel {
           // The accent wash: the plate is not grey, it belongs to the state.
           Rectangle {
             anchors.fill: parent
-            radius: hero.radius
+            anchors.margins: 1
+            radius: hero.radius - 1
             gradient: Gradient {
               GradientStop { position: 0.0; color: Qt.rgba(root.popupAccent.r, root.popupAccent.g, root.popupAccent.b, 0.20) }
               GradientStop { position: 0.6; color: Qt.rgba(root.popupAccent.r, root.popupAccent.g, root.popupAccent.b, 0.05) }
@@ -1071,18 +1109,17 @@ Panel {
                   elide: Text.ElideRight
                 }
 
-                CandleTimer {
-                  id: heroCandle
+                // The aperture is the machine's own gesture: open while
+                // there is time, closing as the deadline arrives, shut when
+                // the action fires. No candle, no flame, no glow.
+                ApertureTimer {
+                  id: heroAperture
                   anchors.horizontalCenter: parent.horizontalCenter
-                  candleHeight: Math.round(dialBox.width * 0.22)
-                  // IDLE shows a burnt-down stump, not a whole unlit candle:
-                  // "nothing is burning" has to look like a candle that has
-                  // been burning.
-                  fraction: service.status === "IDLE" ? 0.18 : root.heroFraction
-                  lit: service.status !== "IDLE"
-                  wax: root.popupText
-                  flame: (service.status === "COUNTDOWN" || service.status === "COUNTDOWN_SCHED")
-                         ? root.popupUrgent : root.popupAccent
+                  size: Math.round(dialBox.width * 0.30)
+                  fraction: service.status === "IDLE" ? 1 : root.heroFraction
+                  ink: root.popupText
+                  alarmInk: root.popupUrgent
+                  alarm: (service.status === "COUNTDOWN" || service.status === "COUNTDOWN_SCHED")
                   reducedMotion: service.reducedMotion
                 }
               }
@@ -1132,7 +1169,7 @@ Panel {
             surface: root.popupSurface
             fontSize: Style.font.bodySmall
             hasCursor: root.cursorActive && root.focusSection === "hero" && root.focusIndex === 1
-            onClicked: service.snooze(service.snoozeMins)
+            onClicked: root.snoozeNow()
           }
 
           Key {

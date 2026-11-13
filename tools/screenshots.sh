@@ -59,6 +59,11 @@ card_crop() { # png outfile margin
   box="$("${BBOX[@]}" "$png")"; read -r x y w h <<<"$box"
   if (( w <= 0 )); then echo "0 0 0 0"; return 1; fi
   m=$(logical_px "$margin")
+  # A card anchored near the screen edge cannot have the full margin on every
+  # side: ImageMagick silently clamps a negative offset and the crop comes out
+  # narrower than frame_check expects. Shrink the margin symmetrically instead.
+  (( m > x )) && m=$x
+  (( m > y )) && m=$y
   magick "$png" -crop "$((w+2*m))x$((h+2*m))+$((x-m))+$((y-m))" +repage "$out"
   # The crop can come out the right size and still show the desktop: a capture
   # in the wrong coordinate space does exactly that. Only a real card puts its

@@ -223,7 +223,28 @@ cmd_at() {
 }
 
 cmd_cancel()    { ensure_daemon; send_command "cancel"; echo "Timer cancelled"; }
-cmd_snooze()    { ensure_daemon; send_command "snooze:${1:-5}"; echo "Timer snoozed by ${1:-5} min"; }
+# The daemon refuses a snooze past the limit without a word on the wire, so the
+# CLI verifies the deadline actually moved: a silent refusal that still printed
+# "snoozed" is how the overlay used to close on a timer that never moved.
+state_target() {
+  local raw; raw=$(get_state)
+  if [[ $raw =~ \"targetTime\":([0-9]+) ]]; then echo "${BASH_REMATCH[1]}"; else echo ""; fi
+}
+
+cmd_snooze() {
+  ensure_daemon
+  local mins="${1:-5}" before after
+  before=$(state_target)
+  send_command "snooze:$mins"
+  sleep 0.4
+  after=$(state_target)
+  if [[ -n "$before" && -n "$after" ]] && (( after > before )); then
+    echo "Timer snoozed by $mins min"
+  else
+    echo "Snooze refused: limit reached, or no timer is running" >&2
+    return 1
+  fi
+}
 cmd_pause()     { ensure_daemon; send_command "pause"; echo "Timer paused"; }
 cmd_resume()    { ensure_daemon; send_command "resume"; echo "Timer resumed"; }
 cmd_reset()     { ensure_daemon; send_command "reset"; echo "Timer reset"; }

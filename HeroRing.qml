@@ -75,8 +75,8 @@ Item {
     running: root.alarm
     loops: Animation.Infinite
     onRunningChanged: if (!running) root.scale = 1.0
-    NumberAnimation { to: 1.012; duration: 520; easing.type: Easing.InOutSine }
-    NumberAnimation { to: 1.0;   duration: 520; easing.type: Easing.InOutSine }
+    NumberAnimation { to: 1.008; duration: 700; easing.type: Easing.InOutSine }
+    NumberAnimation { to: 1.0;   duration: 700; easing.type: Easing.InOutSine }
   }
 
   // ---------- bloom: the ring sits in light, not on a flat fill ----------
@@ -93,8 +93,8 @@ Item {
         focalX: root.width / 2
         focalY: root.height / 2
         focalRadius: 0
-        GradientStop { position: 0.0; color: Qt.rgba(root.tint.r, root.tint.g, root.tint.b, 0.30) }
-        GradientStop { position: 0.62; color: Qt.rgba(root.tint.r, root.tint.g, root.tint.b, 0.12) }
+        GradientStop { position: 0.0; color: Qt.rgba(root.tint.r, root.tint.g, root.tint.b, 0.14) }
+        GradientStop { position: 0.62; color: Qt.rgba(root.tint.r, root.tint.g, root.tint.b, 0.05) }
         GradientStop { position: 1.0; color: Qt.rgba(root.tint.r, root.tint.g, root.tint.b, 0.0) }
       }
       startX: root.width / 2

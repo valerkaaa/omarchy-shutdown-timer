@@ -41,7 +41,6 @@
       "batteryGuard": false,
       "batteryThreshold": 20,
       "quiet": false,
-      "tickSound": false,
       "reducedMotion": false,
       "ambientFade": false,
       "fadeMinutes": 5,
@@ -147,12 +146,6 @@
         "label": "Wait for sleep/shutdown inhibitors",
         "defaultValue": false,
         "description": "Wait up to 10 minutes for another program holding a sleep:shutdown lock."
-      },
-      {
-        "key": "tickSound",
-        "type": "boolean",
-        "label": "Tick sound in the last 3 seconds",
-        "defaultValue": false
       },
       {
         "key": "reducedMotion",
