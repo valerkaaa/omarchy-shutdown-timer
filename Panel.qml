@@ -911,18 +911,6 @@ Panel {
                   elide: Text.ElideRight
                 }
 
-                CandleTimer {
-                  id: heroCandle
-                  anchors.horizontalCenter: parent.horizontalCenter
-                  candleHeight: Math.round(dialBox.width * 0.22)
-                  fraction: root.heroFraction
-                  lit: service.status !== "IDLE"
-                  wax: root.popupText
-                  flame: (service.status === "COUNTDOWN" || service.status === "COUNTDOWN_SCHED")
-                         ? root.popupUrgent : root.popupAccent
-                  reducedMotion: service.reducedMotion
-                }
-
                 Text {
                   id: heroLabels
                   anchors.horizontalCenter: parent.horizontalCenter
@@ -933,6 +921,18 @@ Panel {
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.bodySmall
                   elide: Text.ElideRight
+                }
+
+                CandleTimer {
+                  id: heroCandle
+                  anchors.horizontalCenter: parent.horizontalCenter
+                  candleHeight: Math.round(dialBox.width * 0.22)
+                  fraction: root.heroFraction
+                  lit: service.status !== "IDLE"
+                  wax: root.popupText
+                  flame: (service.status === "COUNTDOWN" || service.status === "COUNTDOWN_SCHED")
+                         ? root.popupUrgent : root.popupAccent
+                  reducedMotion: service.reducedMotion
                 }
               }
             }

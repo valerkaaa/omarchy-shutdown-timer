@@ -10,7 +10,25 @@ The spec lives in `TZ-v3.md`; it was assembled from five independent reviews
 (design, architecture, ideas, critique, second opinion) and the measurements in
 `tools/acceptance.sh`.
 
-### Added
+### Added — stage 2: the focus dial, merged
+
+- `HeroRing.qml` — the dial from the focus (pomodoro) plugin: a sixty-tick
+  minute scale, a bloom, a lit head that pips outward on start and pause, and
+  the ring itself as an input. Dragging around the dial sets the minutes
+  (drag, not click — a click stays with the owner). All colours are tokens;
+  the plugin it came from hard-codes violet.
+- The hero is a lit plate: a surface gradient, an accent wash, one pixel of
+  specular on the top edge, the dial with the figure on its axis and the
+  candle standing under the figure.
+- The overlay speaks the same language: the same plate, a gauge with a lit
+  head instead of a hairline, Cancel as a filled urgent key, `+5` as a quiet
+  pill. It no longer draws `00:00` — the figure reads the real remainder for
+  `ACTIVE`/`PAUSED`, the card waits for the first state, and a window summoned
+  with nothing to count down closes itself.
+- `debugDial "x,y"` — the scrub's angle math, provable from a script
+  (top 0, right 180, bottom 360, left 540 of 720).
+
+### Added — stage 1
 
 - `CandleTimer.qml` — the countdown drawn as a candle: wax shrinks with the
   time left, the flame shortens, a halo makes it read as a light source, and
