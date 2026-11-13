@@ -10,6 +10,17 @@ The spec lives in `TZ-v3.md`; it was assembled from five independent reviews
 (design, architecture, ideas, critique, second opinion) and the measurements in
 `tools/acceptance.sh`.
 
+### Added — stage 3: two gestures the ecosystem does not have
+
+- **A wheel on the bar icon sets the time without opening the popup.** ±5
+  minutes, ±15 with Shift. In IDLE it stages the value and the tooltip says
+  what the click will start; while a timer runs it moves the deadline and the
+  bar shows the new figure. No other bar widget in Omarchy answers the wheel.
+- **A click on the dial starts the timer** when nothing is staged. The ring's
+  `MouseArea` used to swallow that click silently.
+- `debugWheel "±n"` — the same code path the handler calls, provable from a
+  script (`30 → 35 → 20`, and `30 → 40` while running).
+
 ### Added — stage 2: the focus dial, merged
 
 - `HeroRing.qml` — the dial from the focus (pomodoro) plugin: a sixty-tick

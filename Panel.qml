@@ -114,7 +114,17 @@ Panel {
   }
 
   readonly property bool barDimmed: false
+  // Set for a moment after a wheel gesture on the bar icon, so the number the
+  // gesture produced is visible without opening the popup.
+  property string wheelHint: ""
+  Timer {
+    id: wheelHintTimer
+    interval: 1600
+    repeat: false
+    onTriggered: root.wheelHint = ""
+  }
   readonly property string barTooltip: {
+    if (root.wheelHint !== "") return root.wheelHint
     if (service.status === "IDLE") return tr("tooltip.idle")
     if (service.status === "PAUSED") return Model.actionLabel(service.action, language) + " — " + tr("btn.pause").toLowerCase() + " · " + Model.formatTime(service.timeLeft) + " · " + tr("tooltip.cancelHint")
     if (service.status === "ACTIVE") return Model.actionLabel(service.action, language) + " " + tr("time.in") + " " + Model.formatTime(service.timeLeft) + " · " + tr("tooltip.cancelHint")
@@ -400,6 +410,23 @@ Panel {
   readonly property bool absTimeValid: absoluteTime.trim() === "" || /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(absoluteTime.trim())
   readonly property string absTimeError: timeModeAbsolute && !absTimeValid ? tr("error.badTime") : ""
 
+  function wheelAdjust(delta) {
+    var next
+    if (service.status === "IDLE") {
+      next = Math.max(1, Math.min(720, Math.round(customMinutes) + delta))
+      customMinutes = next
+    } else if (service.status === "ACTIVE" || service.status === "PAUSED") {
+      var left = Math.max(1, Math.round(service.timeLeft / 60))
+      next = Math.max(1, Math.min(720, left + delta))
+      service.setTimer(next, service.action || selectedAction)
+      customMinutes = next
+    } else {
+      return
+    }
+    root.wheelHint = root.tr("wheel.pending", String(next))
+    wheelHintTimer.restart()
+  }
+
   function quickSet(mins) {
     service.setTimer(mins, selectedAction)
     close()
@@ -565,6 +592,14 @@ Panel {
     // without relying on pixels.
     // The dial's angle math, so the scrub gesture can be proven from a script
     // without a pointer: feed it a point in the ring's coordinates.
+    // The wheel gesture, provable from a script: same code path the handler
+    // calls, without a pointer.
+    function debugWheel(step: string): string {
+      root.wheelAdjust(parseInt(step || "5", 10))
+      return JSON.stringify({ minutes: root.customMinutes, status: service.status,
+                              hint: root.wheelHint })
+    }
+
     function debugDial(point: string): string {
       var parts = String(point || "").split(",")
       var x = Number(parts[0] || 0)
@@ -668,6 +703,18 @@ Panel {
         cutout: root.barBackground
         variant: root.iconVariant
         fraction: root.remainingFraction
+      }
+    }
+
+    // A wheel over the icon sets the time without opening the popup: ±5
+    // minutes, ±15 with Shift. In IDLE it stages the value; while a timer
+    // runs it moves the deadline. No other bar widget in Omarchy does this.
+    WheelHandler {
+      target: button
+      acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+      onWheel: function(event) {
+        var step = (event.modifiers & Qt.ShiftModifier) ? 15 : 5
+        root.wheelAdjust(event.angleDelta.y > 0 ? step : -step)
       }
     }
 
@@ -888,6 +935,7 @@ Panel {
                   root.customMinutes = Math.max(1, m)
                   root.selectedQuick = ""
                 }
+                onClicked: if (service.status === "IDLE") root.startTimer()
                 onScrubFinished: function(m) {
                   root.customMinutes = Math.max(1, m)
                   root.scrubbing = false

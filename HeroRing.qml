@@ -25,6 +25,7 @@ Item {
   property int scrubMinutes: 30
   property int scrubMax: 1440
 
+  signal clicked()
   signal scrubStarted()
   signal scrubbed(int minutes)
   signal scrubFinished(int minutes)
@@ -189,12 +190,14 @@ Item {
     acceptedButtons: Qt.LeftButton
     preventStealing: true
     property bool active: false
+    property bool wasDrag: false
     property real pressX: 0
     property real pressY: 0
 
     onPressed: function(mouse) {
       pressX = mouse.x; pressY = mouse.y
       active = false
+      wasDrag = false
     }
 
     onPositionChanged: function(mouse) {
@@ -204,6 +207,7 @@ Item {
         var dy = mouse.y - pressY
         if (Math.sqrt(dx * dx + dy * dy) < root.px(6)) return
         active = true
+        wasDrag = true
         root.scrubbing = true
         root.scrubStarted()
       }
@@ -211,6 +215,8 @@ Item {
       root.scrubMinutes = m
       root.scrubbed(m)
     }
+
+    onClicked: if (!wasDrag) root.clicked()
 
     onReleased: {
       if (active) {
