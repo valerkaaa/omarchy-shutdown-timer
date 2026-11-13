@@ -4,6 +4,49 @@ All notable changes to this plugin are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/), and the
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased] — 3.0 «Свеча», stage 1
+
+The spec lives in `TZ-v3.md`; it was assembled from five independent reviews
+(design, architecture, ideas, critique, second opinion) and the measurements in
+`tools/acceptance.sh`.
+
+### Added
+
+- `CandleTimer.qml` — the countdown drawn as a candle: wax shrinks with the
+  time left, the flame shortens, a halo makes it read as a light source, and
+  `blowOut()` kills the flame in 200 ms. Shapes and theme tokens only, no
+  effects module, no literal colour.
+- `Key.qml` — one machined key with four roles (`primary`, `selected`,
+  `ghost`, `danger`), a one-pixel light edge on top and a shade below, a
+  90 ms press, and a cursor outline that does not repaint the key.
+- `TZ-v3.md` — the v3 spec: measured problems, the «Свеча» direction, the
+  visual system, the popup composition, acceptance criteria and the stages.
+
+### Changed
+
+- **The bar mark closes its ring as the timer runs.** The canonical 70°
+  opening narrows to 8° with the remaining fraction, so the mark itself is
+  the progress indicator at 16 px — one parameter, no extra element.
+- **The popup is a hierarchy, not a form.** Action is a row of four segments
+  instead of a dropdown, the hero (candle + figure) is the largest object,
+  the three escape hatches are worded keys, presets are one row of chips,
+  the time is one field with a mode switch, and schedule/more/history live in
+  a tray that opens in place. The launch key is always above the fold:
+  `contentHeight` 387 px against 720 before, `scrolls: false`.
+- The figure in the popup is `max(44, width × 0.15)` px — it used to be
+  31 px of ink while the decorative icon was 46.
+- The bar figure is 11 px (`bodySmall`) instead of the 10 px caption, which
+  was below the plugin's own minimum.
+- Right-click cancels `COUNTDOWN_SCHED` too, not only `ACTIVE`, `COUNTDOWN`
+  and `PAUSED`.
+- `tools/acceptance.sh` accepts the 11 px label width and any bar section.
+
+### Verified
+
+- `tools/acceptance.sh`: 22 passed, 0 failed.
+- `debugOverflow`: `count: 0`; `debugLayout`: `scrolls: false`.
+- Screenshots of IDLE and ACTIVE at 2×, bar mark at half a timer.
+
 ## [2.2.1] — 2026-10-29
 
 ### Fixed

@@ -164,6 +164,7 @@ Panel {
     if (service.status !== "IDLE") out.push("hero")
     out.push("action", "presets", "mode")
     out.push(timeModeAbsolute ? "abs" : "minutes")
+    out.push("tray")
     if (trayOpen === "repeat") {
       out.push("repeat", "addschedule")
       if (scheduleRows.length > 0) out.push("schedules")
@@ -178,6 +179,7 @@ Panel {
     if (section === "advanced") return 4
     if (section === "schedules") return scheduleRows.length
     if (section === "hero") return 3
+    if (section === "tray") return 3
     return 1
   }
 
@@ -207,7 +209,8 @@ Panel {
       focusIndex = Math.min(focusIndex, Math.max(0, sectionCount(focusSection) - 1))
     } else if (dx !== 0) {
       if (focusSection === "hero" || focusSection === "presets" ||
-          focusSection === "advanced" || focusSection === "schedules") {
+          focusSection === "advanced" || focusSection === "schedules" ||
+          focusSection === "tray") {
         focusIndex = Math.max(0, Math.min(sectionCount(focusSection) - 1, focusIndex + dx))
       } else if (focusSection === "action") {
         selectedAction = cycleIn(actionOptions, selectedAction, dx)
@@ -231,6 +234,10 @@ Panel {
     } else if (focusSection === "presets") {
       var p = quickPresets[focusIndex]
       if (p !== undefined) { selectedQuick = String(p); customMinutes = p; quickSet(p) }
+    } else if (focusSection === "tray") {
+      var keys = ["repeat", "more", "history"]
+      var key = keys[focusIndex]
+      if (key) trayOpen = (trayOpen === key ? "" : key)
     } else if (focusSection === "mode") {
       timeModeAbsolute = !timeModeAbsolute
     } else if (focusSection === "minutes") {
@@ -1050,6 +1057,7 @@ Panel {
               required property var modelData
               width: (parent.width - Style.space(12)) / 3
               text: (root.trayOpen === modelData.key ? "▾ " : "▸ ") + modelData.label
+              hasCursor: root.cursorActive && root.focusSection === "tray" && root.focusIndex === index
               role: root.trayOpen === modelData.key ? "selected" : "ghost"
               ink: root.popupText
               accentColor: root.popupAccent
