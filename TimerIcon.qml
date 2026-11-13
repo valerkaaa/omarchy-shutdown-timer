@@ -39,6 +39,11 @@ Item {
   // on a light bar reads as dirt around the badge instead of a clean notch.
   property color cutout: Commons.Color.bar.background
   property string variant: "idle"
+  // Remaining fraction of the timer, 0…1. The gap at twelve o'clock narrows
+  // as the deadline approaches: a nearly closed ring reads as "this is about
+  // to happen" at 16 px, with no extra element on the bar. -1 means "no
+  // progress to show" and keeps the canonical 70° opening.
+  property real fraction: -1
   // "reduce motion" honouring: the shell exposes it; a static mark otherwise
   property bool animate: true
   property bool reducedMotion: false
@@ -48,6 +53,14 @@ Item {
   // A hairline disappears on a 1x screen, a fat stroke closes the ring's
   // counter: the band is 1.4 units, clamped so it never drops under a pixel.
   readonly property real stroke: Math.max(1.35, 1.55 * unit)
+
+  // The canonical mark opens 70° at twelve o'clock. While a timer runs the
+  // opening closes down to 8°, always centred on the top, so the ring itself
+  // becomes the progress indicator.
+  readonly property real clampedFraction: Math.max(0, Math.min(1, root.fraction))
+  readonly property real gapDeg: root.fraction < 0 ? 70 : 8 + 62 * clampedFraction
+  readonly property real sweepDeg: 360 - gapDeg
+  readonly property real startDeg: 90 - sweepDeg / 2
 
   width: iconSize
   height: iconSize
@@ -90,8 +103,8 @@ Item {
           centerY: 12 * root.unit
           radiusX: root.ring
           radiusY: root.ring
-          startAngle: -55
-          sweepAngle: 290
+          startAngle: root.startDeg
+          sweepAngle: root.sweepDeg
         }
       }
 

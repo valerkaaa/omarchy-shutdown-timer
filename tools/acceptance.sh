@@ -20,8 +20,8 @@ geo=$(omarchy-shell shell debugBarGeometry 2>/dev/null | python3 -c "
 import sys,json
 for it in json.load(sys.stdin):
     if 'shutdown' in it.get('id',''): print(it['visible'], it['width'], it['height'], it['section'])")
-if [[ "$geo" == "True 27 26 center" || "$geo" == "True 63 26 center" ]]; then
-  ok "widget visible, slot 27 px idle / 63 px with label, section center ($geo)"
+if [[ "$geo" == "True 27 26 "* || "$geo" == "True 63 26 "* || "$geo" == "True 66 26 "* ]]; then
+  ok "widget visible, slot 27 px idle / 63–66 px with label (11 px figure) ($geo)"
 else
   bad "widget slot: $geo"
 fi

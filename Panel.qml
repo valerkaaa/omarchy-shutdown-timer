@@ -104,6 +104,15 @@ Panel {
   // "•" marks "schedules exist" while idle (TZ 9.5)
   readonly property string scheduleDot: service.scheduleCount > 0 ? "•" : ""
 
+  // How much of the timer is left, 0…1, or -1 when nothing runs. The bar
+  // mark closes its ring with this: no extra element, one parameter.
+  readonly property real remainingFraction: {
+    if (service.status === "IDLE") return -1
+    var total = Number(service.targetTime) - Number(service.startTime)
+    if (!(total > 0)) return -1
+    return Math.max(0, Math.min(1, Number(service.timeLeft) / total))
+  }
+
   readonly property bool barDimmed: false
   readonly property string barTooltip: {
     if (service.status === "IDLE") return tr("tooltip.idle")
@@ -125,6 +134,17 @@ Panel {
   // ---------- repeat / schedule state ----------
   property string repeatMode: "once"          // once | daily | weekdays | weekends
   property var scheduleRows: []               // [{id, at, days, action}]
+  // "" | "repeat" | "more" | "history" — the rare settings open in place
+  // instead of sitting between the user and the launch key.
+  property string trayOpen: ""
+
+  // How much wax is left on the hero candle: 1 in IDLE (whole, unlit), the
+  // real remainder while a timer runs.
+  readonly property real heroFraction: {
+    if (service.status === "IDLE") return 1
+    var f = root.remainingFraction
+    return f < 0 ? 1 : f
+  }
 
   // ---------- keyboard cursor (TZ 12: everything reachable by keyboard) ----------
   // Same model as the stock panels: arrow keys walk a section cursor, Enter
@@ -144,10 +164,12 @@ Panel {
     if (service.status !== "IDLE") out.push("hero")
     out.push("action", "presets", "mode")
     out.push(timeModeAbsolute ? "abs" : "minutes")
-    out.push("repeat", "addschedule")
-    if (scheduleRows.length > 0) out.push("schedules")
-    out.push("advanced", "launch")
-    if (service.status !== "IDLE") out.push("reset")
+    if (trayOpen === "repeat") {
+      out.push("repeat", "addschedule")
+      if (scheduleRows.length > 0) out.push("schedules")
+    }
+    if (trayOpen === "more") out.push("advanced")
+    out.push("launch")
     return out
   }
 
@@ -528,7 +550,7 @@ Panel {
           implicitWidth: Math.round(root.implicitWidth),
           implicitHeight: Math.round(root.implicitHeight),
           button: Math.round(button.implicitWidth) + "x" + Math.round(button.implicitHeight),
-          icon: Math.round(heroIcon.iconSize),
+          icon: Math.round(heroIcon.width),
           labelVisible: timeLabel.visible,
           labelWidth: Math.round(timeLabel.implicitWidth),
           barColor: String(root.barColor),
@@ -597,6 +619,7 @@ Panel {
         color: root.barColor
         cutout: root.barBackground
         variant: root.iconVariant
+        fraction: root.remainingFraction
       }
     }
 
@@ -605,7 +628,8 @@ Panel {
       else if (code === Qt.RightButton) {
         // Right-click is the fastest escape hatch: cancel a running timer,
         // refresh when there is nothing to cancel.
-        if (service.status === "ACTIVE" || service.status === "COUNTDOWN" || service.status === "PAUSED") service.cancel()
+        if (service.status === "ACTIVE" || service.status === "COUNTDOWN"
+            || service.status === "COUNTDOWN_SCHED" || service.status === "PAUSED") service.cancel()
         else service.refresh()
       }
     }
@@ -622,7 +646,9 @@ Panel {
     textFormat: Text.PlainText
     color: root.barColor
     font.family: "monospace"
-    font.pixelSize: Style.font.caption
+    // 11 px, not the shell caption (10): TZ sets a floor and the bar is the
+    // one place the user reads without leaning in.
+    font.pixelSize: Style.font.bodySmall
     renderType: Text.NativeRendering
   }
 
@@ -644,7 +670,7 @@ Panel {
         horizontalAlignment: Text.AlignHCenter
         color: root.barColor
         font.family: "monospace"
-        font.pixelSize: Style.font.caption
+        font.pixelSize: Style.font.bodySmall
         renderType: Text.NativeRendering
       }
     }
@@ -713,152 +739,199 @@ Panel {
         width: panelFlick.width
         spacing: Style.space(12)
 
-        // ---- hero: state, live countdown, escape hatches ----
-        Item {
+        // ---- action: four segments, no dropdown, no section header ----
+        Row {
+          id: actionRow
+          width: parent.width
+          spacing: Style.space(6)
+
+          Repeater {
+            model: [
+              { value: "poweroff",  label: root.tr("action.poweroff") },
+              { value: "reboot",    label: root.tr("action.reboot") },
+              { value: "suspend",   label: root.tr("action.suspend") },
+              { value: "hibernate", label: root.tr("action.hibernate") }
+            ]
+
+            delegate: Key {
+              required property var modelData
+              width: (actionRow.width - Style.space(18)) / 4
+              text: modelData.label
+              role: root.selectedAction === modelData.value ? "selected" : "ghost"
+              ink: root.popupText
+              accentColor: root.popupAccent
+              surface: root.popupSurface
+              fontSize: Style.font.bodySmall
+              hasCursor: root.cursorActive && root.focusSection === "action"
+                         && root.actionOptions.indexOf(root.selectedAction) === index
+              onClicked: root.selectedAction = modelData.value
+            }
+          }
+        }
+
+        // ---- hero: the candle, the figure, the escape hatches ----
+        // A recessed well: the candle stands in it and the figure is the
+        // largest object on the surface. The icon is no longer allowed to
+        // out-weigh the number (it did: 46 px of ink against 31).
+        Rectangle {
           id: hero
           width: parent.width
-          implicitHeight: Math.max(heroIcon.height, heroLabels.implicitHeight, heroButtons.implicitHeight)
-
-          TimerIcon {
-            id: heroIcon
-            reducedMotion: service.reducedMotion
-            // iconSize drives the mark's own size; anchors only place the box
-            iconSize: Style.font.displayLarge + Style.space(6)
-            anchors.left: parent.left
-            anchors.verticalCenter: parent.verticalCenter
-            color: service.status === "IDLE" ? root.foreground : root.barColor
-            cutout: root.popupSurface
-            variant: root.iconVariant
-          }
+          implicitHeight: heroRow.implicitHeight + Style.space(14)
+          radius: Math.round(Style.cornerRadius * 1.5)
+          color: Qt.darker(root.popupSurface, 1.10)
+          border.width: 1
+          border.color: Qt.rgba(root.popupText.r, root.popupText.g, root.popupText.b, 0.09)
 
           Row {
-            id: heroButtons
+            id: heroRow
+            anchors.left: parent.left
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            spacing: Style.space(4)
-            visible: service.status !== "IDLE"
+            anchors.leftMargin: Style.space(9)
+            anchors.rightMargin: Style.space(9)
+            spacing: Style.space(10)
 
-            PanelActionButton {
-              hasCursor: root.cursorActive && root.focusSection === "hero" && root.focusIndex === 0
-              iconText: service.status === "PAUSED" ? root.glyphPlay : root.glyphPause
-              tooltipText: service.status === "PAUSED" ? root.tr("btn.resume") : root.tr("btn.pause")
-              foreground: root.popupText
-              fontFamily: root.fontFamily
-              onClicked: service.status === "PAUSED" ? service.resume() : service.pause()
+            CandleTimer {
+              id: heroIcon
+              anchors.verticalCenter: parent.verticalCenter
+              candleHeight: Math.round(heroFigure.font.pixelSize * 1.35)
+              fraction: root.heroFraction
+              lit: service.status !== "IDLE"
+              wax: root.popupText
+              flame: (service.status === "COUNTDOWN" || service.status === "COUNTDOWN_SCHED")
+                     ? root.popupUrgent : root.popupAccent
+              reducedMotion: service.reducedMotion
             }
 
-            PanelActionButton {
-              hasCursor: root.cursorActive && root.focusSection === "hero" && root.focusIndex === 1
-              iconText: root.glyphPlus
-              tooltipText: root.tr("btn.snooze")
-              foreground: root.popupText
-              fontFamily: root.fontFamily
-              onClicked: service.snooze(5)
-            }
+            Column {
+              id: heroLabels
+              width: parent.width - heroIcon.width - Style.space(10)
+              spacing: Style.space(2)
+              anchors.verticalCenter: parent.verticalCenter
 
-            PanelActionButton {
-              hasCursor: root.cursorActive && root.focusSection === "hero" && root.focusIndex === 2
-              iconText: root.glyphCancel
-              tooltipText: root.tr("btn.cancel")
-              foreground: root.popupUrgent
-              fontFamily: root.fontFamily
-              onClicked: service.cancel()
+              // Engraved figure: the same glyphs one pixel down in the
+              // surface shade, so the number sits in the plate instead of on
+              // top of it. One container keeps both copies aligned without
+              // binding either one's geometry to the other.
+              Item {
+                width: parent.width
+                height: Math.round(heroFigure.font.pixelSize * 1.22)
+
+                Text {
+                  anchors.fill: parent
+                  anchors.topMargin: 1
+                  textFormat: Text.PlainText
+                  text: heroFigure.text
+                  color: Qt.darker(root.popupSurface, 1.45)
+                  font.family: heroFigure.font.family
+                  font.pixelSize: heroFigure.font.pixelSize
+                  font.bold: true
+                  elide: Text.ElideRight
+                  visible: service.status !== "IDLE"
+                }
+
+                Text {
+                  id: heroFigure
+                  anchors.fill: parent
+                  textFormat: Text.PlainText
+                  text: service.status === "IDLE"
+                        ? root.tr("state.none")
+                        : Model.formatTime(service.timeLeft)
+                  color: (service.status === "COUNTDOWN" || service.status === "COUNTDOWN_SCHED")
+                         ? root.popupUrgent : root.popupText
+                  font.family: service.status === "IDLE" ? root.fontFamily : "monospace"
+                  font.pixelSize: service.status === "IDLE"
+                                  ? Style.font.subtitle
+                                  : Math.max(44, Math.round(column.width * 0.15))
+                  font.bold: true
+                  elide: Text.ElideRight
+                }
+              }
+
+              Text {
+                width: parent.width
+                textFormat: Text.PlainText
+                text: {
+                  if (service.status === "IDLE") return root.tr("state.noneHint")
+                  if (service.status === "PAUSED") return root.tr("state.paused", Model.actionLabel(service.action, language))
+                  if (service.status === "COUNTDOWN") return root.tr("state.countdown", Model.actionLabel(service.action, language))
+                  return root.tr("state.active", Model.actionLabel(service.action, language))
+                }
+                color: root.popupText
+                opacity: 0.72
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.bodySmall
+                elide: Text.ElideRight
+              }
             }
           }
+        }
 
-          Column {
-            id: heroLabels
-            anchors.left: heroIcon.right
-            anchors.leftMargin: Style.space(12)
-            anchors.right: heroButtons.visible ? heroButtons.left : parent.right
-            anchors.rightMargin: Style.space(8)
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: Style.space(2)
+        // The three escape hatches, as full-width keys under the well: at
+        // 11 px a bare glyph is a guess, a word is not.
+        Row {
+          id: heroButtons
+          width: parent.width
+          spacing: Style.space(6)
+          visible: service.status !== "IDLE"
 
-            Text {
-              width: parent.width
-              textFormat: Text.PlainText
-              text: {
-                if (service.status === "IDLE") return tr("state.none")
-                if (service.status === "PAUSED") return tr("state.paused", Model.actionLabel(service.action, language))
-                if (service.status === "COUNTDOWN") return tr("state.countdown", Model.actionLabel(service.action, language))
-                return tr("state.active", Model.actionLabel(service.action, language))
-              }
-              color: root.popupText
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.subtitle
-              font.bold: true
-              elide: Text.ElideRight
-            }
+          Key {
+            width: (parent.width - Style.space(12)) / 3
+            text: service.status === "PAUSED" ? root.tr("btn.resume") : root.tr("btn.pause")
+            role: "ghost"
+            ink: root.popupText
+            accentColor: root.popupAccent
+            surface: root.popupSurface
+            fontSize: Style.font.bodySmall
+            hasCursor: root.cursorActive && root.focusSection === "hero" && root.focusIndex === 0
+            onClicked: service.status === "PAUSED" ? service.resume() : service.pause()
+          }
 
-            Text {
-              width: parent.width
-              textFormat: Text.PlainText
-              text: {
-                root.tick
-                if (service.status === "IDLE") return tr("state.noneHint")
-                return Model.formatTime(service.timeLeft)
-              }
-              color: service.status === "COUNTDOWN" ? root.popupUrgent : root.popupText
-              font.family: service.status === "IDLE" ? root.fontFamily : "monospace"
-              font.pixelSize: service.status === "IDLE" ? Style.font.bodySmall : Style.font.display
-              font.bold: service.status !== "IDLE"
-              elide: Text.ElideRight
-            }
+          Key {
+            width: (parent.width - Style.space(12)) / 3
+            text: "+" + service.snoozeMins + " " + root.tr("unit.min")
+            role: "ghost"
+            ink: root.popupText
+            accentColor: root.popupAccent
+            surface: root.popupSurface
+            fontSize: Style.font.bodySmall
+            hasCursor: root.cursorActive && root.focusSection === "hero" && root.focusIndex === 1
+            onClicked: service.snooze(service.snoozeMins)
+          }
+
+          Key {
+            width: (parent.width - Style.space(12)) / 3
+            text: root.tr("btn.cancel")
+            role: "danger"
+            ink: root.popupText
+            accentColor: root.popupAccent
+            dangerColor: root.popupUrgent
+            surface: root.popupSurface
+            fontSize: Style.font.bodySmall
+            hasCursor: root.cursorActive && root.focusSection === "hero" && root.focusIndex === 2
+            onClicked: service.cancel()
           }
         }
 
-        // ---- action ----
-        PanelSectionHeader {
+        // ---- presets: one row of chips, each launches on click ----
+        Row {
+          id: presetRow
           width: parent.width
-          text: root.tr("section.action")
-          foreground: root.foreground
-          fontFamily: root.fontFamily
-        }
-
-        Dropdown {
-          id: actionDropdown
-          hasCursor: root.cursorActive && root.focusSection === "action"
-          width: parent.width
-          label: ""
-          foreground: root.popupText
-          fontFamily: root.fontFamily
-          value: root.selectedAction
-          options: [
-            { value: "poweroff", label: root.tr("action.poweroff") },
-            { value: "reboot",   label: root.tr("action.reboot") },
-            { value: "suspend",  label: root.tr("action.suspend") },
-            { value: "hibernate", label: root.tr("action.hibernate") }
-          ]
-          onChanged: function(v) { root.selectedAction = v }
-        }
-
-        // ---- presets ----
-        PanelSectionHeader {
-          width: parent.width
-          text: root.tr("section.presets")
-          foreground: root.foreground
-          fontFamily: root.fontFamily
-        }
-
-        Grid {
-          id: presetGrid
-          width: parent.width
-          columns: 3
-          spacing: Style.space(8)
+          spacing: Style.space(6)
 
           Repeater {
             model: root.quickPresets
 
-            delegate: Button {
+            delegate: Key {
               required property int modelData
-              width: (parent.width - Style.space(16)) / 3
-              text: String(modelData) + " " + root.tr("unit.min")
-              fontSize: Style.font.body
-              foreground: root.popupText
-              fontFamily: root.fontFamily
-              bordered: true
-              selected: root.selectedQuick === String(modelData)
+              width: (presetRow.width - Style.space(6) * Math.max(0, root.quickPresets.length - 1))
+                     / Math.max(1, root.quickPresets.length)
+              text: String(modelData)
+              role: root.selectedQuick === String(modelData) ? "selected" : "ghost"
+              ink: root.popupText
+              accentColor: root.popupAccent
+              surface: root.popupSurface
+              fontSize: Style.font.bodySmall
               hasCursor: root.cursorActive && root.focusSection === "presets" && root.focusIndex === index
               onClicked: {
                 root.selectedQuick = String(modelData)
@@ -869,60 +942,19 @@ Panel {
           }
         }
 
-        // ---- exact time ----
-        PanelSectionHeader {
-          width: parent.width
-          text: root.tr("section.exact")
-          foreground: root.foreground
-          fontFamily: root.fontFamily
-        }
-
-        ButtonGroup {
-          id: modeGroup
-          // ButtonGroup highlights by index, not by a boolean.
-          cursorIndex: root.cursorActive && root.focusSection === "mode"
-                       ? (root.timeModeAbsolute ? 1 : 0) : -1
-          width: parent.width
-          options: [
-            { value: "relative", label: root.tr("mode.relative") },
-            { value: "absolute", label: root.tr("mode.absolute") }
-          ]
-          value: root.timeModeAbsolute ? "absolute" : "relative"
-          foreground: root.popupText
-          accent: root.popupAccent
-          fontFamily: root.fontFamily
-          fontSize: Style.font.bodySmall
-          onChanged: function(v) { root.timeModeAbsolute = (v === "absolute") }
-        }
-
+        // ---- one time field, one mode switch ----
         Row {
-          id: minutesRow
+          id: timeRow
           width: parent.width
           height: Style.spacing.controlHeight
-          spacing: Style.space(10)
-          visible: !root.timeModeAbsolute
-
-          PanelSlider {
-            id: minutesSlider
-            width: parent.width - customField.width - Style.space(10)
-            anchors.verticalCenter: parent.verticalCenter
-            minimum: 1
-            maximum: 1440
-            step: 5
-            integer: true
-            tickCount: 7
-            value: root.customMinutes
-            onMoved: root.customMinutes = Math.round(minutesSlider.liveValue)
-            onReleased: root.customMinutes = Math.round(minutesSlider.liveValue)
-          }
+          spacing: Style.space(8)
 
           NumberField {
             id: customField
             hasCursor: root.cursorActive && root.focusSection === "minutes"
             // NumberField sizes its inner SpinBox from `fieldWidth`, not from
-            // the component's own width: setting width alone left the field
-            // nine pixels wider than the column it sits in.
-            fieldWidth: Style.space(110)
+            // the component's own width.
+            fieldWidth: Style.space(96)
             from: 1
             to: 1440
             value: root.customMinutes
@@ -930,17 +962,54 @@ Panel {
             fontFamily: root.fontFamily
             onModified: function(v) { root.customMinutes = v }
           }
+
+          Text {
+            anchors.verticalCenter: parent.verticalCenter
+            textFormat: Text.PlainText
+            text: root.tr("unit.min")
+            color: root.popupText
+            opacity: 0.72
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.bodySmall
+          }
+
+          Row {
+            id: modeRow
+            anchors.verticalCenter: parent.verticalCenter
+            width: parent.width - customField.width - Style.space(56)
+            spacing: Style.space(4)
+
+            Key {
+              width: (modeRow.width - Style.space(4)) / 2
+              text: root.tr("mode.relative")
+              role: root.timeModeAbsolute ? "ghost" : "selected"
+              ink: root.popupText
+              accentColor: root.popupAccent
+              surface: root.popupSurface
+              fontSize: Style.font.bodySmall
+              hasCursor: root.cursorActive && root.focusSection === "mode" && !root.timeModeAbsolute
+              onClicked: root.timeModeAbsolute = false
+            }
+
+            Key {
+              width: (modeRow.width - Style.space(4)) / 2
+              text: root.tr("mode.absolute")
+              role: root.timeModeAbsolute ? "selected" : "ghost"
+              ink: root.popupText
+              accentColor: root.popupAccent
+              surface: root.popupSurface
+              fontSize: Style.font.bodySmall
+              hasCursor: root.cursorActive && root.focusSection === "mode" && root.timeModeAbsolute
+              onClicked: root.timeModeAbsolute = true
+            }
+          }
         }
 
-        Column {
-          width: parent.width
-          spacing: Style.space(4)
-          visible: root.timeModeAbsolute
-
-          TextField {
+        TextField {
           id: absTimeField
-          hasCursor: root.cursorActive && root.focusSection === "abs"
           width: parent.width
+          visible: root.timeModeAbsolute
+          hasCursor: root.cursorActive && root.focusSection === "abs"
           placeholderText: "14:30"
           text: root.absoluteTime
           font.family: root.fontFamily
@@ -953,140 +1022,156 @@ Panel {
           }
           onTextChanged: root.absoluteTime = text
           onAccepted: root.startTimer()
-          }
-
-          Text {
-            width: parent.width
-            visible: root.absTimeError !== ""
-            textFormat: Text.PlainText
-            text: root.absTimeError
-            color: root.popupUrgent
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.caption
-          }
-        }
-
-        // ---- repeat / schedule ----
-        PanelSectionHeader {
-          width: parent.width
-          text: root.tr("section.repeat")
-          foreground: root.foreground
-          fontFamily: root.fontFamily
-        }
-
-        ButtonGroup {
-          id: repeatGroup
-          cursorIndex: root.cursorActive && root.focusSection === "repeat"
-                       ? Math.max(0, root.repeatOptions.indexOf(root.repeatMode)) : -1
-          width: parent.width
-          options: [
-            { value: "once",     label: root.tr("repeat.once") },
-            { value: "daily",    label: root.tr("repeat.daily") },
-            { value: "weekdays", label: root.tr("repeat.weekdays") },
-            { value: "weekends", label: root.tr("repeat.weekends") }
-          ]
-          value: root.repeatMode
-          foreground: root.popupText
-          accent: root.popupAccent
-          fontFamily: root.fontFamily
-          fontSize: Style.font.bodySmall
-          onChanged: function(v) { root.repeatMode = v }
-        }
-
-        Row {
-          width: parent.width
-          spacing: Style.space(8)
-
-          Button {
-            id: addScheduleButton
-            hasCursor: root.cursorActive && root.focusSection === "addschedule"
-            width: parent.width - addScheduleHint.implicitWidth - Style.space(8)
-            text: root.tr("repeat.add") + " — " + (root.timeModeAbsolute && root.absoluteTime.trim() !== ""
-                  ? root.absoluteTime.trim() : root.minutesToHhmm(root.customMinutes))
-            fontSize: Style.font.bodySmall
-            foreground: root.popupText
-            fontFamily: root.fontFamily
-            bordered: true
-            onClicked: root.addSchedule()
-          }
-
-          Text {
-            id: addScheduleHint
-            anchors.verticalCenter: parent.verticalCenter
-            textFormat: Text.PlainText
-            text: root.daysLabel(root.daysForRepeat())
-            color: root.popupText
-            opacity: 0.65
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.caption
-          }
-        }
-
-        Column {
-          id: schedulesColumn
-          width: parent.width
-          spacing: Style.space(4)
-          visible: root.scheduleRows.length > 0
-
-          Repeater {
-            model: root.scheduleRows
-
-            delegate: Row {
-              required property var modelData
-              width: parent.width
-              spacing: Style.space(6)
-
-              Text {
-                width: parent.width - removeSchedule.width - Style.space(6)
-                textFormat: Text.PlainText
-                text: "#" + modelData.id + "  " + modelData.at + "  " + modelData.rest
-                color: root.popupText
-                opacity: 0.8
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.caption
-                elide: Text.ElideRight
-                anchors.verticalCenter: parent.verticalCenter
-              }
-
-              PanelActionButton {
-                id: removeSchedule
-                hasCursor: root.cursorActive && root.focusSection === "schedules" && root.focusIndex === index
-                iconText: root.glyphCancel
-                tooltipText: root.tr("repeat.remove")
-                foreground: root.popupUrgent
-                fontFamily: root.fontFamily
-                onClicked: {
-                  service.scheduleRemove(modelData.id)
-                  Qt.callLater(function() { root.loadSchedules() })
-                }
-              }
-            }
-          }
         }
 
         Text {
           width: parent.width
-          visible: root.scheduleRows.length === 0
+          visible: root.absTimeError !== ""
           textFormat: Text.PlainText
-          text: root.tr("repeat.none")
-          color: root.popupText
-          opacity: 0.55
+          text: root.absTimeError
+          color: root.popupUrgent
           font.family: root.fontFamily
-          font.pixelSize: Style.font.caption
+          font.pixelSize: Style.font.bodySmall
         }
 
-        // ---- advanced (TZ 9.4, 9.6) ----
-        PanelSectionHeader {
+        // ---- tray: the rare settings, opened in place ----
+        Row {
           width: parent.width
-          text: root.tr("section.advanced")
-          foreground: root.foreground
-          fontFamily: root.fontFamily
+          spacing: Style.space(6)
+
+          Repeater {
+            model: [
+              { key: "repeat",  label: root.tr("tray.schedule") },
+              { key: "more",    label: root.tr("tray.more") },
+              { key: "history", label: root.tr("tray.history") }
+            ]
+
+            delegate: Key {
+              required property var modelData
+              width: (parent.width - Style.space(12)) / 3
+              text: (root.trayOpen === modelData.key ? "▾ " : "▸ ") + modelData.label
+              role: root.trayOpen === modelData.key ? "selected" : "ghost"
+              ink: root.popupText
+              accentColor: root.popupAccent
+              surface: root.popupSurface
+              fontSize: Style.font.bodySmall
+              onClicked: root.trayOpen = (root.trayOpen === modelData.key ? "" : modelData.key)
+            }
+          }
+        }
+
+        Column {
+          width: parent.width
+          spacing: Style.space(6)
+          visible: root.trayOpen === "repeat"
+
+          ButtonGroup {
+            id: repeatGroup
+            cursorIndex: root.cursorActive && root.focusSection === "repeat"
+                         ? Math.max(0, root.repeatOptions.indexOf(root.repeatMode)) : -1
+            width: parent.width
+            options: [
+              { value: "once",     label: root.tr("repeat.once") },
+              { value: "daily",    label: root.tr("repeat.daily") },
+              { value: "weekdays", label: root.tr("repeat.weekdays") },
+              { value: "weekends", label: root.tr("repeat.weekends") }
+            ]
+            value: root.repeatMode
+            foreground: root.popupText
+            accent: root.popupAccent
+            fontFamily: root.fontFamily
+            fontSize: Style.font.bodySmall
+            onChanged: function(v) { root.repeatMode = v }
+          }
+
+          Row {
+            width: parent.width
+            spacing: Style.space(8)
+
+            Button {
+              id: addScheduleButton
+              hasCursor: root.cursorActive && root.focusSection === "addschedule"
+              width: parent.width - addScheduleHint.implicitWidth - Style.space(8)
+              text: root.tr("repeat.add") + " — " + (root.timeModeAbsolute && root.absoluteTime.trim() !== ""
+                    ? root.absoluteTime.trim() : root.minutesToHhmm(root.customMinutes))
+              fontSize: Style.font.bodySmall
+              foreground: root.popupText
+              fontFamily: root.fontFamily
+              bordered: true
+              onClicked: root.addSchedule()
+            }
+
+            Text {
+              id: addScheduleHint
+              anchors.verticalCenter: parent.verticalCenter
+              textFormat: Text.PlainText
+              text: root.daysLabel(root.daysForRepeat())
+              color: root.popupText
+              opacity: 0.65
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.bodySmall
+            }
+          }
+
+          Column {
+            id: schedulesColumn
+            width: parent.width
+            spacing: Style.space(4)
+            visible: root.scheduleRows.length > 0
+
+            Repeater {
+              model: root.scheduleRows
+
+              delegate: Row {
+                required property var modelData
+                width: parent.width
+                spacing: Style.space(6)
+
+                Text {
+                  width: parent.width - removeSchedule.width - Style.space(6)
+                  textFormat: Text.PlainText
+                  text: "#" + modelData.id + "  " + modelData.at + "  " + modelData.rest
+                  color: root.popupText
+                  opacity: 0.8
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.bodySmall
+                  elide: Text.ElideRight
+                  anchors.verticalCenter: parent.verticalCenter
+                }
+
+                PanelActionButton {
+                  id: removeSchedule
+                  hasCursor: root.cursorActive && root.focusSection === "schedules" && root.focusIndex === index
+                  iconText: root.glyphCancel
+                  tooltipText: root.tr("repeat.remove")
+                  foreground: root.popupUrgent
+                  fontFamily: root.fontFamily
+                  onClicked: {
+                    service.scheduleRemove(modelData.id)
+                    Qt.callLater(function() { root.loadSchedules() })
+                  }
+                }
+              }
+            }
+          }
+
+          Text {
+            width: parent.width
+            visible: root.scheduleRows.length === 0
+            textFormat: Text.PlainText
+            text: root.tr("repeat.none")
+            color: root.popupText
+            opacity: 0.55
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.bodySmall
+          }
         }
 
         Column {
           id: advancedColumn
           width: parent.width
           spacing: Style.space(6)
+          visible: root.trayOpen === "more"
 
           // Each row writes the setting straight to shell.json through the
           // shell's own CLI — the widget's `settings` are read-only here.
@@ -1164,7 +1249,7 @@ Panel {
             color: root.popupText
             opacity: 0.6
             font.family: root.fontFamily
-            font.pixelSize: Style.font.caption
+            font.pixelSize: Style.font.bodySmall
           }
 
           Text {
@@ -1174,23 +1259,14 @@ Panel {
             text: root.tr("adv.dnd")
             color: root.popupUrgent
             font.family: root.fontFamily
-            font.pixelSize: Style.font.caption
+            font.pixelSize: Style.font.bodySmall
           }
-        }
-
-        // ---- history (TZ 6.3) ----
-        PanelSeparator { foreground: root.foreground }
-
-        PanelSectionHeader {
-          width: parent.width
-          text: root.tr("section.history")
-          foreground: root.foreground
-          fontFamily: root.fontFamily
         }
 
         Column {
           width: parent.width
           spacing: Style.space(3)
+          visible: root.trayOpen === "history"
 
           Repeater {
             model: root.historyRows
@@ -1201,9 +1277,9 @@ Panel {
               textFormat: Text.PlainText
               text: modelData
               color: root.popupText
-              opacity: 0.7
+              opacity: 0.72
               font.family: root.fontFamily
-              font.pixelSize: Style.font.caption
+              font.pixelSize: Style.font.bodySmall
               elide: Text.ElideRight
             }
           }
@@ -1216,44 +1292,27 @@ Panel {
             color: root.popupText
             opacity: 0.55
             font.family: root.fontFamily
-            font.pixelSize: Style.font.caption
+            font.pixelSize: Style.font.bodySmall
           }
         }
 
-        // ---- launch ----
-        Button {
+        // ---- launch: always on the first screen, never below the fold ----
+        Key {
           id: launchButton
-          hasCursor: root.cursorActive && root.focusSection === "launch"
           width: parent.width
           text: {
             if (root.timeModeAbsolute)
               return root.absoluteTime.trim() === "" ? root.tr("launch.enterTime") : root.tr("launch.at", root.absoluteTime)
             return root.tr("launch.in", String(Math.round(root.customMinutes)))
           }
+          role: "primary"
+          bold: true
+          ink: root.popupText
+          accentColor: root.popupAccent
+          surface: root.popupSurface
           fontSize: Style.font.body
-          foreground: root.popupAccent
-          fontFamily: root.fontFamily
-          selected: true
+          hasCursor: root.cursorActive && root.focusSection === "launch"
           onClicked: root.startTimer()
-        }
-
-        // ---- active timer: reset ----
-        PanelSeparator {
-          visible: service.status !== "IDLE"
-          foreground: root.foreground
-        }
-
-        Button {
-          id: resetButton
-          hasCursor: root.cursorActive && root.focusSection === "reset"
-          width: parent.width
-          visible: service.status !== "IDLE"
-          text: root.tr("launch.reset")
-          fontSize: Style.font.bodySmall
-          foreground: root.foreground
-          fontFamily: root.fontFamily
-          bordered: true
-          onClicked: root.resetTimer()
         }
       }
     }
@@ -1266,6 +1325,7 @@ Panel {
       cursorActive = false
       focusSection = "action"
       focusIndex = 0
+      trayOpen = ""
       root.loadSchedules()
       root.loadHistory()
       selectedAction = String(service.defaultAction)
