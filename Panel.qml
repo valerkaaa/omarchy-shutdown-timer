@@ -622,10 +622,12 @@ Panel {
           var label = path + "/" + nameOf(c, i)
           if (c.visible && c.width > 0 && c.height > 0) {
             var b = boundsIn(c, popupContent)
-            var overRight = b.x + b.w > frame.w + 1
-            var overLeft = b.x < -1
-            var overBottom = b.y + b.h > frame.h + 1
-            var overTop = b.y < -1
+            // 4 px of slack: a key's halo is painted 3 px outside its box,
+            // which is glow, not layout.
+            var overRight = b.x + b.w > frame.w + 4
+            var overLeft = b.x < -4
+            var overBottom = b.y + b.h > frame.h + 4
+            var overTop = b.y < -4
             if (overRight || overLeft || overBottom || overTop) {
               out.push({
                 path: label,
@@ -654,6 +656,17 @@ Panel {
     function debugBoxes(mm: string, ss: string): string {
       popupContent.debugBoxes(mm, ss)
       return JSON.stringify({ status: service.status, left: service.timeLeft })
+    }
+
+    // Opens a tray section so the layout check can walk it.
+    function debugTray(key: string): string {
+      root.open()
+      root.trayOpen = key
+      return JSON.stringify({ tray: root.trayOpen })
+    }
+
+    function debugGeom(): string {
+      return JSON.stringify(popupContent.geom())
     }
 
     function debugFieldFocus(): string {

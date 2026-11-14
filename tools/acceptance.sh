@@ -70,6 +70,12 @@ out=$(timeout 120 bash tests/test_input.sh 2>&1); rc=$?
 
 out=$(timeout 120 bash tests/test_state_files.sh 2>&1); rc=$?
 [[ $rc -eq 0 ]] && ok "test_state_files.sh green (damaged state files are survived)" || bad "test_state_files red"
+out=$(timeout 180 bash tests/test_layout.sh 2>&1); rc=$?
+if [[ $rc -eq 0 ]]; then
+  if [[ "$out" == *SKIP* ]]; then ok "test_layout.sh skipped (no shell)"; else ok "test_layout.sh green (axis, presets, no overflow)"; fi
+else
+  bad "test_layout red: $(echo "$out" | grep FAIL | head -2 | tr '\n' ' ')"
+fi
 out=$(timeout 120 bash tests/test_gestures.sh 2>&1); rc=$?
 if [[ $rc -eq 0 ]]; then
   if [[ "$out" == *SKIP* ]]; then ok "test_gestures.sh skipped (no shell)"; else ok "test_gestures.sh green (dial, wheel, hold, confirm)"; fi

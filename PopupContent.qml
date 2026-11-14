@@ -35,6 +35,28 @@ Column {
     host.customMinutes = Math.max(1, Math.min(720, Math.round(host.customMinutes) + step))
   }
 
+  // Geometry the layout check reads: is the input centred under the dial,
+  // does the hint span the plate, do the presets sit inside their margins.
+  function geom() {
+    // Absolute, in this column's coordinates: comparing children's local x
+    // with the column's centre is how a 14 px shift hides.
+    function box(item) {
+      var p = item.mapToItem(content, 0, 0)
+      return { x: Math.round(p.x), w: Math.round(item.width), cx: Math.round(p.x + item.width / 2) }
+    }
+    return {
+      column: { w: Math.round(width), h: Math.round(implicitHeight) },
+      dial: box(dial),
+      row: box(exactRow),
+      mm: box(mmField),
+      ss: box(ssField),
+      start: box(startKey),
+      hint: box(hintText),
+      presetsLeft: box(presetsLeft),
+      presetsRight: box(presetsRight)
+    }
+  }
+
   function focusExact() {
     mmField.forceActiveFocus()
   }
@@ -105,7 +127,9 @@ Column {
 
               delegate: Key {
                 required property var modelData
-                width: (actionRow.width - Style.space(24) - Style.space(30)) / 4
+                // The close key is 34 wide and the row has five gaps: the
+                // segments take what is left, so nothing spills over.
+                width: (actionRow.width - Style.space(24) - closeKey.width) / 4
                 text: modelData.label
                 role: "tab"
                 selected: host.selectedAction === modelData.value
@@ -122,6 +146,7 @@ Column {
             }
 
             Key {
+              id: closeKey
               width: Style.space(34)
               text: "✕"
               role: "ghost"
@@ -270,6 +295,7 @@ Column {
             // Quick times sit around the dial, three on each side, so the
             // ring stays the only thing in the centre.
             Column {
+              id: presetsLeft
               anchors.left: parent.left
               anchors.leftMargin: Style.space(4)
               anchors.verticalCenter: parent.verticalCenter
@@ -293,6 +319,7 @@ Column {
             }
 
             Column {
+              id: presetsRight
               anchors.right: parent.right
               anchors.rightMargin: Style.space(4)
               anchors.verticalCenter: parent.verticalCenter
@@ -440,7 +467,9 @@ Column {
               // click moves across; Enter or the key starts.
               Row {
                 id: exactRow
-                width: Math.round(hero.width * 0.62)
+                // Width follows the content, so the group stays centred
+                // instead of packing to the left of a wider row.
+                width: implicitWidth
                 anchors.horizontalCenter: parent.horizontalCenter
                 spacing: Style.space(4)
 
@@ -511,6 +540,7 @@ Column {
               }
 
               Text {
+                id: hintText
                 width: hero.width - Style.space(28)
                 anchors.horizontalCenter: parent.horizontalCenter
                 horizontalAlignment: Text.AlignHCenter

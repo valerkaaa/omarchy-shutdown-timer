@@ -1,3 +1,21 @@
+## v3 stage 12 — everything on the dial's axis
+
+- The exact input is centred: the row sized itself to 62 % of the plate and
+  packed its children to the left, which put the boxes 14 px off the dial.
+  It now takes its own width and sits on the axis (measured: cx 199 of 199).
+- The action row was 4 px wider than the column: the close key is 34 px and
+  the segments were computed against 30. The segments now take what the row
+  has left, so the row ends exactly at the edge.
+- The layout walker allows 4 px of paint slack: a key's halo is drawn 3 px
+  outside its box, which is glow, not overflow.
+- `debugGeom()` reports the dial, the input, the hint and both preset
+  columns in the column's own coordinates, so an off-centre element is a
+  number, not an opinion.
+- `tests/test_layout.sh`: 9 checks — dial/input/hint on the axis, presets
+  mirrored, and no overflow in idle, active, repeat, more and history.
+  Wired into acceptance (24 checks).
+- The hint now says what the ring does (en/ru).
+
 ## v3 stage 11 — no colon to type, a ring that does not jump
 
 - The exact input is two boxes, minutes and seconds, with the separator
