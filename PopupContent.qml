@@ -380,10 +380,11 @@ Column {
                     textFormat: Text.PlainText
                     text: String(host.heroCaption).toUpperCase()
                     color: host.popupText
-                    opacity: 0.72
+                    opacity: 0.86
                     font.family: host.fontFamily
-                    font.pixelSize: Style.font.bodySmall
-                    font.letterSpacing: 1.1
+                    font.pixelSize: Style.font.body
+                    font.weight: Font.DemiBold
+                    font.letterSpacing: 0.6
                     elide: Text.ElideRight
                   }
 

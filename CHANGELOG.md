@@ -1,3 +1,17 @@
+## v3 stage 10 — exact time, finer dial
+
+- The caption inside the ring wraps to two lines inside 74 % of the dial, at
+  body size and demi-bold, so "Power off on a timer" no longer crosses the arc.
+- The figure is demi-bold at 26 % of the dial and still fits by construction:
+  `11:59:58` shrinks instead of spilling out.
+- Dragging the ring now covers 0–120 min instead of 0–720: one minute per
+  three degrees, which is what a hand can actually aim at. Longer times come
+  from the wheel (Shift ±15) and the presets.
+- New exact field under the dial: `1` is a minute, `1:30` and `30s` are
+  seconds, Enter or ▶ starts. Backed by a new `set-secs:` daemon command
+  (5 s – 24 h) and `control.sh set-seconds`, so a 30-second timer is real.
+- The aperture is gone; 15/30/45/60/90/120 sit around the dial, three a side.
+
 # Changelog
 
 All notable changes to this plugin are documented here.
