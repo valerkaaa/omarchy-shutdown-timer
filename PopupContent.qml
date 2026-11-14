@@ -30,6 +30,10 @@ Column {
 
   function minutesAt(px, py) { return dial.minutesAt(px, py) }
 
+  function focusExact() {
+    exactField.forceActiveFocus()
+  }
+
   // "1" → 60 s, "1:30" → 90 s, "30s" → 30 s. Anything under five seconds is
   // refused: the overlay would eat it.
   function submitExact(raw) {
