@@ -112,7 +112,14 @@ Bar states, cropped from real screenshots — dark (*ristretto*) on top, light
 | paused | ![](assets/screenshots/dark/4-paused.png) | ![](assets/screenshots/light/4-paused.png) |
 | countdown (urgent) | ![](assets/screenshots/dark/5-countdown.png) | ![](assets/screenshots/light/5-countdown.png) |
 
-The countdown and the vertical bar layout:
+The countdown — the last thirty seconds, on top of everything, in the theme's
+own accent:
+
+<div align="center">
+<img src="assets/screenshots/overlay-v3.png" alt="The countdown overlay: 00:29, Cancel and +5 minutes" width="460">
+</div>
+
+The overlay and the vertical bar layout:
 
 | countdown overlay | vertical bar |
 |---|---|
