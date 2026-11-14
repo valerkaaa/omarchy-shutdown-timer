@@ -84,9 +84,21 @@ bar_states() { # theme
   sleep 1
 
   state() { # name
-    grim -g "$BAR_X,0 ${BAR_W}x$(bar_height)" "$WORK/bar.png"
-    magick "$WORK/bar.png" -filter point -resize '512x160!' "$OUT/$theme/$1.png"
-    echo "    $theme/$1.png"
+    # The widget's own slot, read from the shell: a hardcoded x drifted onto a
+    # neighbour's widget the moment the bar layout changed, and the README
+    # showed somebody else's plugin.
+    local x y w h pad=2
+    read -r x y w h <<<"$(widget_geometry)"
+    if (( w <= 0 )); then echo "    $theme/$1.png (widget not found, skipped)"; return 0; fi
+    grim -g "$((x-pad)),$((y)) $((w+2*pad+6))x$((h))" "$WORK/bar.png"
+    # One canvas for every state: the strip is padded to a fixed width with
+    # the bar's own background, so the five pictures line up in the table
+    # instead of each having its own size.
+    local bg
+    bg=$(magick "$WORK/bar.png" -format '%[pixel:p{1,1}]' info:)
+    magick "$WORK/bar.png" -filter point -resize '800%' \
+      -background "$bg" -gravity west -extent 760x208 "$OUT/$theme/$1.png"
+    echo "    $theme/$1.png (760x208)"
   }
 
   state 1-idle
@@ -164,10 +176,11 @@ vertical_shot() { # theme
   # upscaled by a whole number so the 1 px strokes stay crisp. Cropping beats a
   # forced resize: the old `-resize 336x448!` stretched the strip to the wrong
   # aspect.
-  grim -g "$x,$((y-48)) ${w}x$((h+84))" "$WORK/vert.png"
+  # The widget in its column with its neighbours: on a vertical bar the
+  # context is the point, and the geometry alone would cut the label.
+  grim -g "$x,$((y-40)) ${w}x$((h+80))" "$WORK/vert.png"
   omarchy bar position top >/dev/null 2>&1; sleep 6
-  magick "$WORK/vert.png" -crop 28x107+2+1 +repage -filter point -resize 800% \
-         "$OUT/$theme/8-vertical.png"
+  magick "$WORK/vert.png" -filter point -resize 800% "$OUT/$theme/8-vertical.png"
   echo "    $theme/8-vertical.png"
 }
 

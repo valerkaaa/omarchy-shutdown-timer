@@ -102,15 +102,17 @@ The four states in motion (`idle → active → warning → countdown → paused
 </div>
 
 Bar states, cropped from real screenshots — dark (*ristretto*) on top, light
-(*Flexoki Light*) below:
+(*Flexoki Light*) below. Every frame is the widget's own slot, cut from the bar
+by `tools/screenshots.sh`; nothing is drawn by hand:
 
-| state | dark | light |
-|---|---|---|
-| idle (dimmed mark) | ![](assets/screenshots/dark/1-idle.png) | ![](assets/screenshots/light/1-idle.png) |
-| active | ![](assets/screenshots/dark/2-active.png) | ![](assets/screenshots/light/2-active.png) |
-| last 5 min (accent) | ![](assets/screenshots/dark/3-warning.png) | ![](assets/screenshots/light/3-warning.png) |
-| paused | ![](assets/screenshots/dark/4-paused.png) | ![](assets/screenshots/light/4-paused.png) |
-| countdown (urgent) | ![](assets/screenshots/dark/5-countdown.png) | ![](assets/screenshots/light/5-countdown.png) |
+<table>
+<tr><th align="left">state</th><th align="left">dark</th><th align="left">light</th></tr>
+<tr><td>idle</td><td><img src="assets/screenshots/dark/1-idle.png" width="230"></td><td><img src="assets/screenshots/light/1-idle.png" width="230"></td></tr>
+<tr><td>active</td><td><img src="assets/screenshots/dark/2-active.png" width="230"></td><td><img src="assets/screenshots/light/2-active.png" width="230"></td></tr>
+<tr><td>last 5 min</td><td><img src="assets/screenshots/dark/3-warning.png" width="230"></td><td><img src="assets/screenshots/light/3-warning.png" width="230"></td></tr>
+<tr><td>paused</td><td><img src="assets/screenshots/dark/4-paused.png" width="230"></td><td><img src="assets/screenshots/light/4-paused.png" width="230"></td></tr>
+<tr><td>countdown</td><td><img src="assets/screenshots/dark/5-countdown.png" width="230"></td><td><img src="assets/screenshots/light/5-countdown.png" width="230"></td></tr>
+</table>
 
 The countdown — the last thirty seconds, on top of everything, in the theme's
 own accent:
@@ -119,11 +121,15 @@ own accent:
 <img src="assets/screenshots/overlay-v3.png" alt="The countdown overlay: 00:29, Cancel and +5 minutes" width="460">
 </div>
 
-The overlay and the vertical bar layout:
+The overlay and the widget in a vertical bar:
 
-| countdown overlay | vertical bar |
-|---|---|
-| ![](assets/screenshots/dark/7-overlay.png) | ![](assets/screenshots/dark/8-vertical.png) |
+<table>
+<tr><th align="left">countdown overlay</th><th align="left">vertical bar</th></tr>
+<tr>
+<td><img src="assets/screenshots/dark/7-overlay.png" width="420"></td>
+<td><img src="assets/screenshots/dark/8-vertical.png" width="130"></td>
+</tr>
+</table>
 
 The overlay is the part that earns the plugin: **a large monospace countdown, a
 progress line, Отмена / Cancel and +5 минут / +5 minutes**, with `Esc` and
