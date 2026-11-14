@@ -42,7 +42,13 @@ Item {
   readonly property real stroke: px(thickness)
   readonly property real tickBand: px(11)
   readonly property real radius: Math.max(1, Math.min(width, height) / 2 - stroke / 2 - tickBand)
-  readonly property real sweep: 360 * Math.max(0, Math.min(1, root.fraction))
+  // A change of the time moves the arc with a 400 ms ease instead of a jump:
+  // +5 minutes should be visible as a motion, not as a repaint.
+  property real sweep: 360 * Math.max(0, Math.min(1, root.fraction))
+  Behavior on sweep {
+    enabled: !root.reducedMotion
+    NumberAnimation { duration: 420; easing.type: Easing.OutCubic }
+  }
   readonly property real headAngle: (-90 + root.sweep) * Math.PI / 180
   readonly property real headX: width / 2 + radius * Math.cos(headAngle)
   readonly property real headY: height / 2 + radius * Math.sin(headAngle)
@@ -154,6 +160,22 @@ Item {
     }
   }
 
+  // ---------- inner lens rings ----------
+  Repeater {
+    model: [0.78, 0.58]
+    Rectangle {
+      required property real modelData
+      readonly property real d: root.radius * 2 * modelData
+      width: d
+      height: d
+      radius: d / 2
+      anchors.centerIn: parent
+      color: "transparent"
+      border.width: 1
+      border.color: Qt.rgba(root.ink.r, root.ink.g, root.ink.b, 0.10)
+    }
+  }
+
   // ---------- sweep ----------
   Shape {
     anchors.fill: parent
@@ -174,17 +196,58 @@ Item {
     }
   }
 
-  // ---------- head: the lit pip that says "here is now" ----------
-  Rectangle {
+  Shape {
+    anchors.fill: parent
+    preferredRendererType: Shape.CurveRenderer
+    ShapePath {
+      strokeColor: Qt.rgba(root.tint.r, root.tint.g, root.tint.b, 0.10)
+      strokeWidth: root.stroke * 1.8
+      fillColor: "transparent"
+      capStyle: ShapePath.RoundCap
+      PathAngleArc {
+        centerX: root.width / 2
+        centerY: root.height / 2
+        radiusX: root.radius
+        radiusY: root.radius
+        startAngle: -90
+        sweepAngle: Math.max(0.01, root.sweep)
+      }
+    }
+  }
+
+  // ---------- head: a machined knob, not a dot ----------
+  // Dark centre, light rim, one specular: the same three layers the keys use,
+  // at 16 px, which is what makes it read as a physical part.
+  Item {
+    id: knob
     visible: root.sweep > 0.5
-    width: root.px(9) + root.kick * root.px(3)
+    width: root.px(12) + root.kick * root.px(3)
     height: width
-    radius: width / 2
     x: root.headX - width / 2
     y: root.headY - height / 2
-    color: root.tint
-    border.width: 1
-    border.color: Qt.rgba(1, 1, 1, 0.55)
+
+    Rectangle {
+      anchors.fill: parent
+      radius: width / 2
+      color: Qt.darker(root.ink, 2.4)
+      border.width: Math.max(1, root.px(1.6))
+      border.color: root.tint
+    }
+    Rectangle {
+      anchors.fill: parent
+      anchors.margins: Math.max(1, root.px(1.2))
+      radius: width / 2
+      color: root.tint
+      opacity: 0.9
+    }
+    Rectangle {
+      width: Math.max(2, root.px(2.4))
+      height: width
+      radius: width / 2
+      x: parent.width * 0.26
+      y: parent.height * 0.22
+      color: Qt.rgba(1, 1, 1, 0.75)
+    }
   }
 
   // The angle under a point, in minutes. Public so a script can prove the

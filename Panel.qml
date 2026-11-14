@@ -149,10 +149,30 @@ Panel {
   // "" | "repeat" | "more" | "history" — the rare settings open in place
   // instead of sitting between the user and the launch key.
   property string trayOpen: ""
+  // Cancel asks once before it fires: the button is a decision, the hold on
+  // the bar icon and Esc in the overlay stay one-action escapes.
+  property bool confirmOpen: false
+
+  function askCancel() {
+    if (service.status === "IDLE") { root.close(); return }
+    root.confirmOpen = true
+  }
+
+  function doCancel() {
+    root.confirmOpen = false
+    service.cancel()
+    root.close()
+  }
 
   // True while the dial is being dragged: the hero then shows the value
   // under the finger instead of the running remainder.
   property bool scrubbing: false
+
+  readonly property string targetClock: {
+    var t = Number(service.targetTime)
+    if (service.status === "IDLE" || !(t > 0)) t = Math.floor(Date.now() / 1000) + Math.round(root.customMinutes) * 60
+    return Qt.formatDateTime(new Date(t * 1000), "HH:mm")
+  }
 
   readonly property int heroBaseMinutes: Math.max(1, Math.round(service.timeLeft / 60))
   readonly property int heroTotalMinutes: {
@@ -321,7 +341,7 @@ Panel {
     if (focusSection === "hero") {
       if (focusIndex === 0) service.status === "PAUSED" ? service.resume() : service.pause()
       else if (focusIndex === 1) root.snoozeNow()
-      else service.cancel()
+      else root.askCancel()
     } else if (focusSection === "tray") {
       var keys = ["repeat", "more", "history"]
       var key = keys[focusIndex]
@@ -624,6 +644,17 @@ Panel {
     // without relying on pixels.
     // The dial's angle math, so the scrub gesture can be proven from a script
     // without a pointer: feed it a point in the ring's coordinates.
+    // The confirm sheet, provable from a script.
+    function debugConfirm(): string {
+      root.askCancel()
+      return JSON.stringify({ open: root.confirmOpen, status: service.status })
+    }
+    function debugConfirmAnswer(answer: string): string {
+      if (String(answer) === "yes") root.doCancel()
+      else root.confirmOpen = false
+      return JSON.stringify({ open: root.confirmOpen, status: service.status })
+    }
+
     // Hold-to-cancel, provable from a script: start the hold, wait, end it.
     function debugHoldStart(): string {
       if (service.status === "IDLE") return JSON.stringify({ started: false, reason: "idle" })
@@ -894,7 +925,7 @@ Panel {
       id: keyCatcher
       anchors.fill: parent
       blocked: false
-      onCloseRequested: root.close()
+      onCloseRequested: if (root.confirmOpen) root.confirmOpen = false; else root.close()
       // Arrows start the cursor; until then Enter keeps its old meaning
       // ("launch the timer now").
       onMoveRequested: function(dx, dy) {
@@ -904,7 +935,10 @@ Panel {
       // Return emits BOTH returnRequested and activateRequested, so the
       // activation lives in one place — wiring the same action to both
       // handlers would run it twice (double-add, toggles cancelling out).
-      onActivateRequested: if (root.cursorActive) root.activateCursor(); else root.startTimer()
+      onActivateRequested: {
+        if (root.confirmOpen) { root.doCancel(); return }
+        if (root.cursorActive) root.activateCursor(); else root.startTimer()
+      }
       onDeleteRequested: {
         if (root.cursorActive && root.focusSection === "schedules" && root.scheduleRows[root.focusIndex]) {
           service.scheduleRemove(root.scheduleRows[root.focusIndex].id)
@@ -961,10 +995,13 @@ Panel {
 
             delegate: Key {
               required property var modelData
-              width: (actionRow.width - Style.space(18)) / 4
+              width: (actionRow.width - Style.space(24) - Style.space(30)) / 4
               text: modelData.label
-              role: root.selectedAction === modelData.value ? "selected" : "ghost"
-              ink: root.popupText
+              role: "tab"
+              selected: root.selectedAction === modelData.value
+              uppercase: true
+              tracking: 0.6
+              ink: root.selectedAction === modelData.value ? root.popupAccent : root.popupText
               accentColor: root.popupAccent
               surface: root.popupSurface
               fontSize: Style.font.bodySmall
@@ -972,6 +1009,17 @@ Panel {
                          && root.actionOptions.indexOf(root.selectedAction) === index
               onClicked: root.selectedAction = modelData.value
             }
+          }
+
+          Key {
+            width: Style.space(30)
+            text: "✕"
+            role: "ghost"
+            ink: root.popupText
+            accentColor: root.popupAccent
+            surface: root.popupSurface
+            fontSize: Style.font.bodySmall
+            onClicked: root.close()
           }
         }
 
@@ -982,7 +1030,7 @@ Panel {
         Rectangle {
           id: hero
           width: parent.width
-          implicitHeight: heroColumn.implicitHeight + Style.space(20)
+          implicitHeight: heroColumn.implicitHeight + Style.space(52)
           radius: Math.round(Style.cornerRadius * 1.8)
           border.width: 1
           border.color: Qt.rgba(root.popupAccent.r, root.popupAccent.g, root.popupAccent.b, 0.24)
@@ -1017,11 +1065,87 @@ Panel {
             color: Qt.rgba(1, 1, 1, 0.30)
           }
 
+          // A hairline grid, barely there: the plate is a device surface, not a
+          // flat card. Static, so it costs nothing.
+          Repeater {
+            model: [0.25, 0.5, 0.75]
+            Rectangle {
+              required property real modelData
+              x: Math.round(hero.width * modelData)
+              y: 0
+              width: 1
+              height: hero.height
+              color: Qt.rgba(root.popupText.r, root.popupText.g, root.popupText.b, 0.045)
+            }
+          }
+          Repeater {
+            model: [0.33, 0.66]
+            Rectangle {
+              required property real modelData
+              x: 0
+              y: Math.round(hero.height * modelData)
+              width: hero.width
+              height: 1
+              color: Qt.rgba(root.popupText.r, root.popupText.g, root.popupText.b, 0.045)
+            }
+          }
+
+          // HUD corners: the panel reports its own state the way a device
+          // does — small caps, monospace, letterspaced, muted.
+          Text {
+            anchors.left: parent.left
+            anchors.top: parent.top
+            anchors.margins: Style.space(10)
+            textFormat: Text.PlainText
+            text: "SYS_STAT: " + service.status
+            color: root.popupText
+            opacity: 0.68
+            font.family: "monospace"
+            font.pixelSize: Style.font.bodySmall
+            font.letterSpacing: 1.0
+          }
+          Text {
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.margins: Style.space(10)
+            textFormat: Text.PlainText
+            text: "AUTO-CALIBRATION: " + (service.ambientFade ? "ON" : "OFF")
+            color: service.ambientFade ? root.popupAccent : root.popupText
+            opacity: service.ambientFade ? 0.9 : 0.62
+            font.family: "monospace"
+            font.pixelSize: Style.font.bodySmall
+            font.letterSpacing: 1.0
+          }
+          Text {
+            anchors.left: parent.left
+            anchors.bottom: parent.bottom
+            anchors.margins: Style.space(10)
+            textFormat: Text.PlainText
+            text: "T-" + Model.formatTime(service.status === "IDLE" ? root.customMinutes * 60 : service.timeLeft)
+            color: root.popupText
+            opacity: 0.68
+            font.family: "monospace"
+            font.pixelSize: Style.font.bodySmall
+            font.letterSpacing: 1.0
+          }
+          Text {
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            anchors.margins: Style.space(10)
+            textFormat: Text.PlainText
+            text: "TARGET " + root.targetClock
+            color: root.popupText
+            opacity: 0.68
+            font.family: "monospace"
+            font.pixelSize: Style.font.bodySmall
+            font.letterSpacing: 1.0
+          }
+
           Column {
             id: heroColumn
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.top: parent.top
-            anchors.topMargin: Style.space(12)
+            anchors.topMargin: Style.space(26)
             spacing: Style.space(8)
 
             Item {
@@ -1101,11 +1225,12 @@ Panel {
                   id: heroLabels
                   anchors.horizontalCenter: parent.horizontalCenter
                   textFormat: Text.PlainText
-                  text: root.heroCaption
+                  text: String(root.heroCaption).toUpperCase()
                   color: root.popupText
-                  opacity: 0.78
+                  opacity: 0.72
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.bodySmall
+                  font.letterSpacing: 1.1
                   elide: Text.ElideRight
                 }
 
@@ -1182,7 +1307,7 @@ Panel {
             surface: root.popupSurface
             fontSize: Style.font.bodySmall
             hasCursor: root.cursorActive && root.focusSection === "hero" && root.focusIndex === 2
-            onClicked: service.cancel()
+            onClicked: root.askCancel()
           }
         }
 
@@ -1472,6 +1597,78 @@ Panel {
         }
       }
     }
+
+    // ---- cancel confirmation ----
+    Rectangle {
+      id: confirmSheet
+      z: 20
+      anchors.fill: parent
+      anchors.margins: Style.space(2)
+      visible: root.confirmOpen
+      radius: Math.round(Style.cornerRadius * 1.4)
+      color: root.popupSurface
+      border.width: 1
+      border.color: Qt.rgba(root.popupUrgent.r, root.popupUrgent.g, root.popupUrgent.b, 0.45)
+
+      Column {
+        anchors.centerIn: parent
+        width: parent.width - Style.space(40)
+        spacing: Style.space(10)
+
+        Text {
+          width: parent.width
+          horizontalAlignment: Text.AlignHCenter
+          textFormat: Text.PlainText
+          text: root.tr("confirm.title")
+          color: root.popupText
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.title
+          font.letterSpacing: 0.6
+          font.bold: true
+        }
+
+        Text {
+          width: parent.width
+          horizontalAlignment: Text.AlignHCenter
+          textFormat: Text.PlainText
+          text: root.tr("confirm.body", [Model.formatTime(service.timeLeft),
+                        Model.actionLabel(service.action || root.selectedAction, root.language)])
+          color: root.popupText
+          opacity: 0.7
+          wrapMode: Text.WordWrap
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.bodySmall
+        }
+
+        Row {
+          anchors.horizontalCenter: parent.horizontalCenter
+          spacing: Style.space(8)
+
+          Key {
+            width: Style.space(150)
+            text: root.tr("confirm.keep")
+            role: "ghost"
+            ink: root.popupText
+            accentColor: root.popupAccent
+            surface: root.popupSurface
+            fontSize: Style.font.bodySmall
+            onClicked: root.confirmOpen = false
+          }
+
+          Key {
+            width: Style.space(150)
+            text: root.tr("confirm.yes")
+            role: "danger"
+            ink: root.popupText
+            accentColor: root.popupAccent
+            dangerColor: root.popupUrgent
+            surface: root.popupSurface
+            fontSize: Style.font.bodySmall
+            onClicked: root.doCancel()
+          }
+        }
+      }
+    }
   }
 
   onOpenedChanged: {
@@ -1482,6 +1679,7 @@ Panel {
       focusSection = "action"
       focusIndex = 0
       trayOpen = ""
+      confirmOpen = false
       root.loadSchedules()
       root.loadHistory()
       selectedAction = String(service.defaultAction)

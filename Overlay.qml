@@ -244,7 +244,7 @@ Item {
       height: cardColumn.implicitHeight + Style.space(96)
       radius: Math.round(Style.cornerRadius * 1.8)
       border.width: Math.max(2, Style.space(2))
-      border.color: Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.55)
+      border.color: Commons.Color.popups.border
       // The first frame has no state yet; drawing it would show "00:00" for a
       // moment, which reads as "it is firing now".
       opacity: root.loaded ? 1 : 0

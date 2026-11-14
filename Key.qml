@@ -18,7 +18,11 @@ Item {
   // selected — lit but not filled (a chosen chip or segment)
   // ghost    — secondary, reads as a plate
   // danger   — the cancel key
+  // tab — a text-only item in the top row; the active one is a pill with an
+  // accent frame, the rest are plain words.
   property string role: "ghost"
+  property bool uppercase: false
+  property real tracking: 0
   property color ink: Commons.Color.popups.text
   property color accentColor: Commons.Color.accent
   property color surface: Commons.Color.popups.background
@@ -30,8 +34,11 @@ Item {
   signal clicked()
 
   readonly property bool primary: role === "primary"
-  readonly property bool selected: role === "selected"
+  // Writable: the action tabs set it directly, the chips derive it from
+  // their role.
+  property bool selected: role === "selected"
   readonly property bool danger: role === "danger"
+  readonly property bool tab: role === "tab"
 
   // Text colour per role, contrast-checked against the surface it sits on.
   readonly property color labelColor: {
@@ -45,9 +52,19 @@ Item {
   implicitWidth: label.implicitWidth + Style.space(16)
   height: implicitHeight
 
+  // The primary key sits in its own light: a wide, low halo, not a shadow.
+  Rectangle {
+    visible: root.primary
+    anchors.fill: parent
+    anchors.margins: -3
+    radius: height / 2
+    color: Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.10)
+  }
+
   Rectangle {
     id: plate
     anchors.fill: parent
+    visible: !root.tab
     radius: Math.round(Style.cornerRadius * 0.85)
     border.width: 1
     border.color: {
@@ -64,7 +81,7 @@ Item {
       GradientStop {
         position: 0.0
         color: {
-          if (root.primary) return Qt.lighter(root.accentColor, 1.32)
+          if (root.primary) return Qt.lighter(root.accentColor, 1.38)
           if (root.selected) return Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.24)
           return Qt.rgba(root.ink.r, root.ink.g, root.ink.b, 0.075)
         }
@@ -72,7 +89,7 @@ Item {
       GradientStop {
         position: 0.45
         color: {
-          if (root.primary) return root.accentColor
+          if (root.primary) return Qt.lighter(root.accentColor, 1.12)
           if (root.selected) return Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.16)
           return Qt.rgba(root.ink.r, root.ink.g, root.ink.b, 0.055)
         }
@@ -80,7 +97,7 @@ Item {
       GradientStop {
         position: 1.0
         color: {
-          if (root.primary) return Qt.darker(root.accentColor, 1.12)
+          if (root.primary) return root.accentColor
           if (root.selected) return Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.10)
           return Qt.rgba(root.ink.r, root.ink.g, root.ink.b, 0.04)
         }
@@ -88,9 +105,22 @@ Item {
     }
   }
 
+  Rectangle {
+    id: tabPlate
+    anchors.fill: parent
+    visible: root.tab
+    radius: height / 2
+    color: root.selected ? Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.20)
+                         : (mouse.containsMouse ? Qt.rgba(root.ink.r, root.ink.g, root.ink.b, 0.05) : "transparent")
+    border.width: root.selected ? Math.max(1, Style.space(1)) : 1
+    border.color: root.selected ? root.accentColor : "transparent"
+    Behavior on color { ColorAnimation { duration: 140 } }
+  }
+
   // Top light edge: the whole trick. One pixel of lifted colour makes the
   // plate read as a raised key instead of a filled rectangle.
   Rectangle {
+    visible: !root.tab
     anchors.left: plate.left
     anchors.right: plate.right
     anchors.top: plate.top
@@ -104,6 +134,7 @@ Item {
 
   // Bottom shade, same idea in reverse.
   Rectangle {
+    visible: !root.tab
     anchors.left: plate.left
     anchors.right: plate.right
     anchors.bottom: plate.bottom
@@ -119,10 +150,11 @@ Item {
     id: label
     anchors.centerIn: parent
     textFormat: Text.PlainText
-    text: root.text
+    text: root.uppercase ? String(root.text).toUpperCase() : root.text
     color: root.labelColor
     font.family: Style.font.family
     font.pixelSize: root.fontSize
+    font.letterSpacing: root.tracking
     font.bold: root.bold || root.primary || root.selected
     elide: Text.ElideRight
     width: Math.min(implicitWidth, root.width - Style.space(8))
@@ -134,7 +166,7 @@ Item {
   Rectangle {
     anchors.fill: parent
     anchors.margins: -2
-    radius: plate.radius + 2
+    radius: root.tab ? height / 2 : plate.radius + 2
     color: "transparent"
     border.width: 1
     border.color: root.hasCursor ? root.accentColor : "transparent"

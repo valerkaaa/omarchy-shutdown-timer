@@ -48,11 +48,11 @@ Item {
       var ctx = getContext("2d")
       var c = root.size / 2
       var R = root.outer
-      var r = Math.max(0.6, R * 0.92 * root.open)
+      var r = Math.max(0.6, R * 0.80 * root.open)
       ctx.reset()
       ctx.lineWidth = 1
       ctx.strokeStyle = Qt.rgba(root.blade.r, root.blade.g, root.blade.b, 0.45)
-      ctx.fillStyle = Qt.rgba(root.blade.r, root.blade.g, root.blade.b, 0.30)
+      ctx.fillStyle = Qt.rgba(root.blade.r, root.blade.g, root.blade.b, 0.42)
 
       for (var i = 0; i < 6; i++) {
         var a0 = (i * 60 - 90) * Math.PI / 180
