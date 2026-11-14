@@ -281,6 +281,7 @@ Panel {
     var out = []
     if (service.status !== "IDLE") out.push("hero")
     out.push("action")
+    out.push("dial")
     out.push("tray")
     if (trayOpen === "repeat") {
       out.push("repeat", "addschedule")
@@ -327,6 +328,10 @@ Panel {
       if (focusSection === "hero" || focusSection === "advanced" ||
           focusSection === "schedules" || focusSection === "tray") {
         focusIndex = Math.max(0, Math.min(sectionCount(focusSection) - 1, focusIndex + dx))
+      } else if (focusSection === "dial") {
+        // Left/right on the dial is a slider: one minute per step, five with
+        // the same modifier the wheel uses.
+        customMinutes = Math.max(1, Math.min(720, Math.round(customMinutes) + dx * 5))
       } else if (focusSection === "action") {
         selectedAction = cycleIn(actionOptions, selectedAction, dx)
       } else if (focusSection === "repeat") {
@@ -342,6 +347,8 @@ Panel {
       if (focusIndex === 0) service.status === "PAUSED" ? service.resume() : service.pause()
       else if (focusIndex === 1) root.snoozeNow()
       else root.askCancel()
+    } else if (focusSection === "dial") {
+      root.startTimer()
     } else if (focusSection === "tray") {
       var keys = ["repeat", "more", "history"]
       var key = keys[focusIndex]
@@ -712,7 +719,7 @@ Panel {
           implicitWidth: Math.round(root.implicitWidth),
           implicitHeight: Math.round(root.implicitHeight),
           button: Math.round(button.implicitWidth) + "x" + Math.round(button.implicitHeight),
-          icon: Math.round(heroIcon.width),
+          icon: Math.round(heroAperture.width),
           labelVisible: timeLabel.visible,
           labelWidth: Math.round(timeLabel.implicitWidth),
           barColor: String(root.barColor),
@@ -730,13 +737,13 @@ Panel {
         },
         hero: {
           height: Math.round(hero.height),
-          iconWidth: Math.round(heroIcon.width),
+          iconWidth: Math.round(heroAperture.width),
           labelsX: Math.round(heroLabels.x),
           labelsWidth: Math.round(heroLabels.width),
           buttonsX: Math.round(heroButtons.x),
           buttonsWidth: Math.round(heroButtons.width),
           // the label column must start after the icon and end before the buttons
-          iconClearsLabels: heroLabels.x >= heroIcon.width,
+          iconClearsLabels: heroLabels.x >= heroAperture.width,
           labelsClearButtons: !heroButtons.visible || (heroLabels.x + heroLabels.width) <= heroButtons.x
         }
       })
@@ -1012,7 +1019,7 @@ Panel {
           }
 
           Key {
-            width: Style.space(30)
+            width: Style.space(34)
             text: "✕"
             role: "ghost"
             ink: root.popupText
@@ -1033,7 +1040,7 @@ Panel {
           implicitHeight: heroColumn.implicitHeight + Style.space(52)
           radius: Math.round(Style.cornerRadius * 1.8)
           border.width: 1
-          border.color: Qt.rgba(root.popupAccent.r, root.popupAccent.g, root.popupAccent.b, 0.24)
+          border.color: Qt.rgba(root.popupAccent.r, root.popupAccent.g, root.popupAccent.b, 0.12)
 
           gradient: Gradient {
             GradientStop { position: 0.0; color: Qt.lighter(root.popupSurface, 1.16) }
@@ -1087,6 +1094,22 @@ Panel {
               width: hero.width
               height: 1
               color: Qt.rgba(root.popupText.r, root.popupText.g, root.popupText.b, 0.045)
+            }
+          }
+
+          // Dust: a few static specks at low opacity. Static on purpose — a
+          // particle field that animates is a battery tax for decoration.
+          Repeater {
+            model: [[0.10, 0.16, 1], [0.90, 0.14, 1], [0.08, 0.88, 1],
+                    [0.92, 0.86, 1], [0.50, 0.06, 1]]
+            Rectangle {
+              required property var modelData
+              x: Math.round(hero.width * modelData[0])
+              y: Math.round(hero.height * modelData[1])
+              width: modelData[2] + 1
+              height: width
+              radius: width / 2
+              color: Qt.rgba(root.popupAccent.r, root.popupAccent.g, root.popupAccent.b, 0.13)
             }
           }
 
@@ -1166,6 +1189,7 @@ Panel {
                 scrubMinutes: root.customMinutes
                 scrubMax: 720
                 reducedMotion: service.reducedMotion
+                focused: root.cursorActive && root.focusSection === "dial"
                 deltaMode: service.status !== "IDLE"
                 baseMinutes: root.heroBaseMinutes
                 onScrubbed: function(m) {
@@ -1581,11 +1605,9 @@ Panel {
         Key {
           id: launchButton
           width: parent.width
-          text: {
-            if (root.timeModeAbsolute)
-              return root.absoluteTime.trim() === "" ? root.tr("launch.enterTime") : root.tr("launch.at", root.absoluteTime)
-            return root.tr("launch.in", String(Math.round(root.customMinutes)))
-          }
+          text: service.status === "IDLE"
+                ? root.tr("launch.in", String(Math.round(root.customMinutes)))
+                : root.tr("launch.update", String(Math.round(root.customMinutes)))
           role: "primary"
           bold: true
           ink: root.popupText

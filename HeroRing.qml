@@ -28,6 +28,7 @@ Item {
   // absolute angle: pulling past the head adds time instead of restarting the
   // countdown from a new absolute value.
   property bool reducedMotion: false
+  property bool focused: false
   property bool deltaMode: false
   property real baseMinutes: 30
 
@@ -156,6 +157,27 @@ Item {
         radiusY: root.radius
         startAngle: 0
         sweepAngle: 359.99
+      }
+    }
+  }
+
+  // The leading half of the arc is lighter: a gradient stroke is not available
+  // on a ShapePath, so the same read is built from a second, shorter arc.
+  Shape {
+    anchors.fill: parent
+    preferredRendererType: Shape.CurveRenderer
+    ShapePath {
+      strokeColor: Qt.rgba(1, 1, 1, 0.14)
+      strokeWidth: root.stroke
+      fillColor: "transparent"
+      capStyle: ShapePath.RoundCap
+      PathAngleArc {
+        centerX: root.width / 2
+        centerY: root.height / 2
+        radiusX: root.radius
+        radiusY: root.radius
+        startAngle: -90
+        sweepAngle: Math.max(0.01, root.sweep * 0.45)
       }
     }
   }

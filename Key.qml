@@ -48,7 +48,7 @@ Item {
     return ink
   }
 
-  implicitHeight: primary ? Style.space(40) : Style.space(28)
+  implicitHeight: primary ? Style.space(44) : Style.space(32)
   implicitWidth: label.implicitWidth + Style.space(16)
   height: implicitHeight
 
@@ -82,6 +82,7 @@ Item {
         position: 0.0
         color: {
           if (root.primary) return Qt.lighter(root.accentColor, 1.38)
+          if (root.danger) return Qt.rgba(root.dangerColor.r, root.dangerColor.g, root.dangerColor.b, 0.07)
           if (root.selected) return Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.24)
           return Qt.rgba(root.ink.r, root.ink.g, root.ink.b, 0.075)
         }
@@ -90,6 +91,7 @@ Item {
         position: 0.45
         color: {
           if (root.primary) return Qt.lighter(root.accentColor, 1.12)
+          if (root.danger) return Qt.rgba(root.dangerColor.r, root.dangerColor.g, root.dangerColor.b, 0.05)
           if (root.selected) return Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.16)
           return Qt.rgba(root.ink.r, root.ink.g, root.ink.b, 0.055)
         }
@@ -98,6 +100,7 @@ Item {
         position: 1.0
         color: {
           if (root.primary) return root.accentColor
+          if (root.danger) return Qt.rgba(root.dangerColor.r, root.dangerColor.g, root.dangerColor.b, 0.03)
           if (root.selected) return Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.10)
           return Qt.rgba(root.ink.r, root.ink.g, root.ink.b, 0.04)
         }
