@@ -651,6 +651,11 @@ Panel {
     // without relying on pixels.
     // The dial's angle math, so the scrub gesture can be proven from a script
     // without a pointer: feed it a point in the ring's coordinates.
+    function debugBoxes(mm: string, ss: string): string {
+      popupContent.debugBoxes(mm, ss)
+      return JSON.stringify({ status: service.status, left: service.timeLeft })
+    }
+
     function debugFieldFocus(): string {
       popupContent.focusExact()
       return JSON.stringify({ focused: true })

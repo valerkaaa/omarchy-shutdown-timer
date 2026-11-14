@@ -1,3 +1,16 @@
+## v3 stage 11 — no colon to type, a ring that does not jump
+
+- The exact input is two boxes, minutes and seconds, with the separator
+  printed between them: Tab or a click moves across, ↑/↓ steps a value,
+  Enter or ▶ starts. Nothing to remember, no colon to hunt for.
+- The ring drags **relatively**: the value moves with the hand from where the
+  press landed instead of jumping to the cursor. One turn is 60 minutes
+  (6° a minute), Shift is the fine gear at 12 minutes a turn.
+- The wheel over the ring is ±1 minute, Shift ±5 — the keyboard-free way to
+  nudge when the hand is already on the mouse.
+- The hint says what the ring does: "Drag the ring · Shift for fine · wheel
+  ±1 min" (en/ru).
+
 ## v3 stage 10 — exact time, finer dial
 
 - The caption inside the ring wraps to two lines inside 74 % of the dial, at

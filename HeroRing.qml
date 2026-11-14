@@ -24,6 +24,11 @@ Item {
   property bool scrubbing: false
   property int scrubMinutes: 30
   property int scrubMax: 720
+  // How many minutes one full turn of the ring covers while dragging. Sixty
+  // is six degrees a minute — a hand can aim at that. Shift is the fine
+  // gear: twelve minutes a turn, so a wrist movement is a minute or two.
+  property int dragMax: 60
+  property bool fineDrag: false
   // While a timer runs a drag is a delta from the current remainder, not an
   // absolute angle: pulling past the head adds time instead of restarting the
   // countdown from a new absolute value.
@@ -296,11 +301,11 @@ Item {
   }
 
   // Signed shortest arc between two angles, in minutes.
-  function deltaMinutes(fromDeg, toDeg) {
+  function deltaMinutes(fromDeg, toDeg, scale) {
     var d = toDeg - fromDeg
     while (d > 180) d -= 360
     while (d < -180) d += 360
-    return d / 360 * root.scrubMax
+    return d / 360 * (scale === undefined ? root.dragMax : scale)
   }
 
   // Snap to five minutes: a 720-minute dial is two minutes per degree, which
@@ -323,10 +328,13 @@ Item {
     property real pressX: 0
     property real pressY: 0
     property real pressAngle: 0
+    property real dragFromValue: 0
 
     onPressed: function(mouse) {
       pressX = mouse.x; pressY = mouse.y
       pressAngle = root.angleAt(mouse.x, mouse.y)
+      dragFromValue = root.value
+      root.fineDrag = (mouse.modifiers & Qt.ShiftModifier) !== 0
       active = false
       wasDrag = false
     }
@@ -342,13 +350,11 @@ Item {
         root.scrubbing = true
         root.scrubStarted()
       }
-      var raw
-      if (root.deltaMode) {
-        raw = root.baseMinutes + root.deltaMinutes(pressAngle, root.angleAt(mouse.x, mouse.y))
-      } else {
-        raw = root.minutesAt(mouse.x, mouse.y)
-      }
-      var m = Math.max(1, Math.min(root.scrubMax, root.snapped(raw)))
+      // Relative: the ring never jumps to wherever the press landed. What
+      // the hand sweeps is what the value changes by.
+      var scale = root.fineDrag ? 12 : root.dragMax
+      var raw = root.dragFromValue
+                + root.deltaMinutes(pressAngle, root.angleAt(mouse.x, mouse.y), scale)
       root.scrubMinutes = m
       root.scrubbed(m)
     }

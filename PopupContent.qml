@@ -30,8 +30,38 @@ Column {
 
   function minutesAt(px, py) { return dial.minutesAt(px, py) }
 
+  function wheelOnDial(delta) {
+    var step = (delta > 0 ? 1 : -1) * (host.customMinutes >= 1 ? 1 : 0)
+    host.customMinutes = Math.max(1, Math.min(720, Math.round(host.customMinutes) + step))
+  }
+
   function focusExact() {
-    exactField.forceActiveFocus()
+    mmField.forceActiveFocus()
+  }
+
+  function bump(field, delta) {
+    var v = parseInt(field.text, 10)
+    if (isNaN(v)) v = 0
+    field.text = String(Math.max(0, v + delta))
+  }
+
+  // The two boxes: minutes × 60 + seconds. The colon is printed, never typed.
+  function debugBoxes(mm, ss) {
+    mmField.text = String(mm)
+    ssField.text = String(ss)
+    submitBoxes()
+  }
+
+  function submitBoxes() {
+    var mm = parseInt(mmField.text, 10)
+    var ss = parseInt(ssField.text, 10)
+    if (isNaN(mm)) mm = Math.round(host.customMinutes)
+    if (isNaN(ss)) ss = 0
+    var secs = mm * 60 + ss
+    if (secs < 5) return
+    service.setTimerSeconds(secs, host.selectedAction)
+    mmField.text = ""
+    ssField.text = ""
   }
 
   // "1" → 60 s, "1:30" → 90 s, "30s" → 30 s. Anything under five seconds is
@@ -55,9 +85,7 @@ Column {
       return
     }
     if (secs < 5) return
-    if (secs % 60 === 0) service.setTimer(Math.round(secs / 60), host.selectedAction)
-    else service.setTimerSeconds(secs, host.selectedAction)
-    exactField.text = ""
+    service.setTimerSeconds(secs, host.selectedAction)
   }
   function scrubMax() { return dial.scrubMax }
 
@@ -303,6 +331,17 @@ Column {
                 HeroRing {
                   id: dial
                   anchors.fill: parent
+
+                  // A notch is a minute, Shift is five: the keyboard-free
+                  // way to nudge without hunting for the exact angle.
+                  WheelHandler {
+                    acceptedModifiers: Qt.NoModifier
+                    onWheel: function(event) { content.wheelOnDial(event.angleDelta.y) }
+                  }
+                  WheelHandler {
+                    acceptedModifiers: Qt.ShiftModifier
+                    onWheel: function(event) { content.wheelOnDial(event.angleDelta.y * 5) }
+                  }
                   fraction: host.heroFraction
                   running: service.status !== "IDLE"
                   paused: service.status === "PAUSED"
@@ -396,27 +435,66 @@ Column {
                 }
               }
 
-              // Exact input: "1" is a minute, "1:30" and "30s" are seconds.
+              // Exact input without a colon to type: minutes and seconds are
+              // two boxes with the separator printed between them. Tab or a
+              // click moves across; Enter or the key starts.
               Row {
+                id: exactRow
                 width: Math.round(hero.width * 0.62)
                 anchors.horizontalCenter: parent.horizontalCenter
-                spacing: Style.space(6)
+                spacing: Style.space(4)
 
                 TextField {
-                  id: exactField
-                  width: parent.width - startKey.width - parent.spacing
+                  id: mmField
+                  width: Style.space(52)
                   height: Style.space(30)
-                  placeholderText: Model.formatTime(Math.round(host.customMinutes) * 60)
+                  placeholderText: String(Math.round(host.customMinutes))
+                  validator: IntValidator { bottom: 0; top: 720 }
+                  inputMethodHints: Qt.ImhDigitsOnly
                   font.family: "monospace"
                   font.pixelSize: Style.font.body
                   color: host.popupText
                   horizontalAlignment: Text.AlignHCenter
+                  selectByMouse: true
                   background: BorderSurface {
                     color: "transparent"
                     borderSpec: Border.controlSpec("normal", host.popupText, host.popupAccent)
                     radius: Style.cornerRadius
                   }
-                  onAccepted: content.submitExact(text)
+                  onAccepted: content.submitBoxes()
+                  Keys.onDownPressed: content.bump(mmField, -1)
+                  Keys.onUpPressed: content.bump(mmField, 1)
+                }
+
+                Text {
+                  anchors.verticalCenter: parent.verticalCenter
+                  text: ":"
+                  color: host.popupText
+                  opacity: 0.6
+                  font.family: "monospace"
+                  font.pixelSize: Style.font.body
+                }
+
+                TextField {
+                  id: ssField
+                  width: Style.space(44)
+                  height: Style.space(30)
+                  placeholderText: "00"
+                  validator: IntValidator { bottom: 0; top: 59 }
+                  inputMethodHints: Qt.ImhDigitsOnly
+                  font.family: "monospace"
+                  font.pixelSize: Style.font.body
+                  color: host.popupText
+                  horizontalAlignment: Text.AlignHCenter
+                  selectByMouse: true
+                  background: BorderSurface {
+                    color: "transparent"
+                    borderSpec: Border.controlSpec("normal", host.popupText, host.popupAccent)
+                    radius: Style.cornerRadius
+                  }
+                  onAccepted: content.submitBoxes()
+                  Keys.onDownPressed: content.bump(ssField, -1)
+                  Keys.onUpPressed: content.bump(ssField, 1)
                 }
 
                 Key {
@@ -428,7 +506,7 @@ Column {
                   accentColor: host.popupAccent
                   surface: host.popupSurface
                   fontSize: Style.font.bodySmall
-                  onClicked: content.submitExact(exactField.text)
+                  onClicked: content.submitBoxes()
                 }
               }
 

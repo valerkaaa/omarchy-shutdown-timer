@@ -54,6 +54,11 @@ got=$("${IPC[@]}" debugWheel 10 | json "['minutes']")
 "${IPC[@]}" debugExact "1" >/dev/null; sleep 1
 st=$("${CTL[@]}" status | head -1)
 [[ "$st" == "Status: ACTIVE" ]] && ok "exact: '1' starts a one-minute timer" || bad "exact 1 left '$st'"
+"${IPC[@]}" debugBoxes 0 40 >/dev/null; sleep 1.2
+left=$("${CTL[@]}" status | awk '/Time left/ {print $3}'); left=${left#00:}
+(( left >= 35 && left <= 40 )) && ok "boxes: 0 + 40 starts 40 seconds (${left}s)" || bad "boxes left=$left"
+
+"${CTL[@]}" cancel >/dev/null 2>&1; sleep 0.5
 "${IPC[@]}" debugExact "30s" >/dev/null; sleep 1.2
 left=$("${CTL[@]}" status | awk '/Time left/ {print $3}')
 left=${left#00:}
