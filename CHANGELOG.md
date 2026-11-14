@@ -1,3 +1,16 @@
+## v3 stage 14 — the wheel is the fast path
+
+- Wheel over the dial: a notch is a minute, Shift is five. It sits on the
+  dial rather than the whole plate so the wheel still scrolls the popup when
+  the tray makes it taller than the screen.
+- The wheel already worked on the bar icon (±5, Shift ±15) without opening
+  the popup — that stays.
+- `+`/`-` (and `=`/`_`) on the keyboard do the same as a notch, next to the
+  existing "type the minutes" path.
+- The hints now name the wheel first (en/ru), in both IDLE and ACTIVE.
+- `debugWheelCount()` reports how many wheel events the dial has seen, so the
+  gesture can be proven without guessing.
+
 ## v3 stage 13 — the audit pass
 
 - **The ring drag was dead**: the handler read `root.value` (a property that

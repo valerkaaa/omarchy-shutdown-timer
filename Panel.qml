@@ -676,6 +676,10 @@ Panel {
       return JSON.stringify({ minutes: m })
     }
 
+    function debugWheelCount(): string {
+      return JSON.stringify({ events: popupContent.wheelEvents, minutes: Math.round(root.customMinutes) })
+    }
+
     function debugGeom(): string {
       return JSON.stringify(popupContent.geom())
     }
@@ -1001,6 +1005,15 @@ Panel {
           root.typedMinutes = next
           var n = parseInt(next, 10)
           if (n >= 1) root.customMinutes = Math.min(720, n)
+          return
+        }
+        // The wheel's keyboard twin: one minute a press, no pointer needed.
+        if (t === "+" || t === "=") {
+          root.customMinutes = Math.min(720, Math.round(root.customMinutes) + 1)
+          return
+        }
+        if (t === "-" || t === "_") {
+          root.customMinutes = Math.max(1, Math.round(root.customMinutes) - 1)
           return
         }
         if (t === "c" || t === "C") timerService.cancel()

@@ -30,8 +30,14 @@ Column {
 
   function minutesAt(px, py) { return dial.minutesAt(px, py) }
 
-  function wheelOnDial(delta) {
-    var step = (delta > 0 ? 1 : -1) * (host.customMinutes >= 1 ? 1 : 0)
+  // Wheel over the plate: a notch is a minute, Shift five. The count is
+  // there so a script (and a person) can prove the wheel reaches us.
+  property int wheelEvents: 0
+
+  function wheelOnDial(delta, fine) {
+    if (delta === 0) return
+    wheelEvents += 1
+    var step = (delta > 0 ? 1 : -1) * (fine ? 5 : 1)
     host.customMinutes = Math.max(1, Math.min(720, Math.round(host.customMinutes) + step))
   }
 
@@ -367,16 +373,18 @@ Column {
                   id: dial
                   anchors.fill: parent
 
-                  // A notch is a minute, Shift is five: the keyboard-free
-                  // way to nudge without hunting for the exact angle.
+                  // The wheel is the fast path: a notch is a minute, Shift is
+                  // five. On the dial, so the wheel still scrolls the popup
+                  // when the tray makes it taller than the screen.
                   WheelHandler {
                     acceptedModifiers: Qt.NoModifier
-                    onWheel: function(event) { content.wheelOnDial(event.angleDelta.y) }
+                    onWheel: function(event) { content.wheelOnDial(event.angleDelta.y, false) }
                   }
                   WheelHandler {
                     acceptedModifiers: Qt.ShiftModifier
-                    onWheel: function(event) { content.wheelOnDial(event.angleDelta.y * 5) }
+                    onWheel: function(event) { content.wheelOnDial(event.angleDelta.y, true) }
                   }
+
                   fraction: host.heroFraction
                   running: service.status !== "IDLE"
                   paused: service.status === "PAUSED"
