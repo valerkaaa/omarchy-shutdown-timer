@@ -121,15 +121,11 @@ own accent:
 <img src="assets/screenshots/overlay-v3.png" alt="The countdown overlay: 00:29, Cancel and +5 minutes" width="460">
 </div>
 
-The overlay and the widget in a vertical bar:
+The same widget when the bar stands on the left:
 
-<table>
-<tr><th align="left">countdown overlay</th><th align="left">vertical bar</th></tr>
-<tr>
-<td><img src="assets/screenshots/dark/7-overlay.png" width="420"></td>
-<td><img src="assets/screenshots/dark/8-vertical.png" width="130"></td>
-</tr>
-</table>
+<div align="center">
+<img src="assets/screenshots/dark/8-vertical.png" alt="The widget on a vertical bar" width="130">
+</div>
 
 The overlay is the part that earns the plugin: **a large monospace countdown, a
 progress line, Отмена / Cancel and +5 минут / +5 minutes**, with `Esc` and
