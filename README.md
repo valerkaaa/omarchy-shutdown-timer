@@ -20,6 +20,24 @@ language.
 
 ---
 
+## What is new in 3.0
+
+The popup became an instrument instead of a form.
+
+- **A dial you can operate three ways.** Drag it and the value moves with your
+  hand, not to where you pressed (one turn is an hour, Shift is the fine
+  gear); scroll over it for one minute a notch, five with Shift; or type into
+  two boxes that take minutes and seconds — no colon to hunt for.
+- **The presets moved around the dial** — 15 / 30 / 45 on the left, 60 / 90 /
+  120 on the right — so a common time is one click and the centre stays clean.
+- **Seconds are real.** `0` + `40` starts a forty-second timer; the daemon
+  grew a `set-secs` command for it.
+- **A metal knob, a two-tone arc, a minute scale** — and the figure fits by
+  construction, so `11:59:58` shrinks instead of crossing the ring.
+- **The layout is tested, not eyeballed**: `tools/acceptance.sh` checks the
+  dial, the input and the hint share one axis, that the preset columns
+  mirror each other, and that nothing overflows in any section.
+
 ## The bar
 
 <div align="center">
@@ -34,8 +52,11 @@ so, and an urgent mark in the last minute — readable at a glance, without
 stealing focus.
 
 - **Four actions**: power off, reboot, suspend, hibernate.
-- **Presets and a slider**: 15 / 30 / 45 / 60 / 90 / 120 minutes in one click,
-  anything from 1 to 1440, or an absolute `HH:MM`.
+- **Four ways to pick a time, all of them fast**: the wheel (a notch is a
+  minute, Shift five) works anywhere in the popup and on the bar icon without
+  opening it; six presets sit around the dial; the ring drags relatively —
+  one turn is an hour, Shift is the fine gear; and two boxes take minutes and
+  seconds without a colon to type (`0` + `40` is forty seconds).
 - **Schedule**: repeating timers per weekday (`once` / `daily` / `weekdays` /
   `weekends`), listed and removable from the popup.
 - **Conditions**: wait for inhibitors (a film, a backup) and a low-battery guard
@@ -54,15 +75,20 @@ stealing focus.
 ## The popup
 
 <div align="center">
-<img src="assets/screenshots/popup-ru.png" alt="The popup, Russian locale" width="340">
+<img src="assets/screenshots/popup-v3.jpg" alt="The popup: the dial, the presets around it, the exact boxes" width="380">
+&nbsp;&nbsp;
+<img src="assets/screenshots/light/6-popup.png" alt="The live popup, light theme" width="300">
 </div>
 
+*Left: a design render of the v3 popup. Right: the live popup in the Flexoki
+Light theme. The live one takes every colour from the theme, so it looks
+different in yours — the layout is the same.*
+
 One page, top to bottom, no tabs: **the action** (shut down, reboot, suspend,
-hibernate), **the presets** 15–120, **an exact time** — "in N minutes" or a
-clock time, with a slider and a spin box — **repeat** (once, daily, weekdays,
-weekends) with a one-click *add schedule*, four **guards** (don't act on
-battery, quiet, wait for downloads, dry run) and **the history** of the last
-runs.
+hibernate), **the dial** with the six presets around it, **the exact boxes**
+for minutes and seconds, **repeat** (once, daily, weekdays, weekends) with a
+one-click *add schedule*, four **guards** (don't act on battery, quiet, wait
+for downloads, dry run) and **the history** of the last runs.
 
 Right-click the mark cancels a running timer; inside the popup the arrows and
 `Enter` do the same work as the mouse.

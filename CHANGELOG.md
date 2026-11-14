@@ -1,3 +1,33 @@
+# Changelog
+
+## 3.0.0 — the dial
+
+The popup is an instrument now: a ring you drag, scroll or type into, with the
+presets around it and seconds on the menu.
+
+**Time input**
+- Wheel anywhere in the popup: ±1 minute a notch, ±5 with Shift. On the bar
+  icon: ±5 and ±15 without opening anything.
+- The ring drags relatively — one turn is an hour, Shift is the fine gear —
+  and no longer jumps to where the press landed.
+- Two boxes for minutes and seconds with the colon printed between them;
+  `0` + `40` is forty seconds, and the daemon learned `set-secs` for it.
+- Six presets around the dial, three a side.
+
+**Look**
+- The aperture is gone; the dial carries a metal knob, a two-tone arc, a
+  minute scale and a figure that fits by construction.
+- Caption inside the ring, two lines, demi-bold; the hint names the gestures.
+- Every colour from the theme; nothing literal.
+
+**Under the hood**
+- `Panel.qml` split: the popup body lives in `PopupContent.qml`.
+- Tests: 19 gesture checks, 9 layout checks, 17 suite files, 27 acceptance
+  checks — all green. The layout gate compares coordinates, so an off-centre
+  element fails the build instead of shipping.
+- Audit fixes: a dead ring drag, a settings heredoc that a webhook URL could
+  break, an unrotated log, world-readable state files.
+
 ## v3 stage 14 — the wheel is the fast path
 
 - Wheel over the dial: a notch is a minute, Shift is five. `WheelHandler`
