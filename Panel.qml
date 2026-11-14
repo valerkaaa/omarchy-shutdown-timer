@@ -614,14 +614,14 @@ Panel {
         var p = item.mapToItem(target, 0, 0)
         return { x: p.x, y: p.y, w: item.width * (item.scale || 1), h: item.height * (item.scale || 1) }
       }
-      var frame = { w: column.width, h: column.implicitHeight }
+      var frame = { w: popupContent.width, h: popupContent.implicitHeight }
       function walk(item, path) {
         var kids = item.children
         for (var i = 0; i < kids.length; i++) {
           var c = kids[i]
           var label = path + "/" + nameOf(c, i)
           if (c.visible && c.width > 0 && c.height > 0) {
-            var b = boundsIn(c, column)
+            var b = boundsIn(c, popupContent)
             var overRight = b.x + b.w > frame.w + 1
             var overLeft = b.x < -1
             var overBottom = b.y + b.h > frame.h + 1
@@ -640,7 +640,7 @@ Panel {
           walk(c, label)
         }
       }
-      walk(column, "column")
+      walk(popupContent, "popupContent")
       return JSON.stringify({ count: out.length, items: out.slice(0, 15) })
     }
 
@@ -691,8 +691,8 @@ Panel {
       var x = Number(parts[0] || 0)
       var y = Number(parts[1] || 0)
       try {
-        var m = dial.minutesAt(x, y)
-        return JSON.stringify({ minutes: m, max: dial.scrubMax, x: x, y: y, size: Math.round(dial.width) })
+        var m = popupContent.minutesAt(x, y)
+        return JSON.stringify({ minutes: m, max: popupContent.scrubMax(), x: x, y: y, size: Math.round(popupContent.width) })
       } catch (e) {
         return JSON.stringify({ error: String(e) })
       }
@@ -719,7 +719,7 @@ Panel {
           implicitWidth: Math.round(root.implicitWidth),
           implicitHeight: Math.round(root.implicitHeight),
           button: Math.round(button.implicitWidth) + "x" + Math.round(button.implicitHeight),
-          icon: Math.round(heroAperture.width),
+          icon: popupContent.aperturePixels,
           labelVisible: timeLabel.visible,
           labelWidth: Math.round(timeLabel.implicitWidth),
           barColor: String(root.barColor),
@@ -732,12 +732,12 @@ Panel {
           height: Math.round(panel.height),
           contentWidth: Math.round(panel.contentWidth),
           contentHeight: Math.round(panel.contentHeight),
-          columnHeight: Math.round(column.implicitHeight),
-          scrolls: column.implicitHeight > panelFlick.height
+          columnHeight: Math.round(popupContent.implicitHeight),
+          scrolls: popupContent.implicitHeight > panelFlick.height
         },
         hero: {
           height: Math.round(hero.height),
-          iconWidth: Math.round(heroAperture.width),
+          iconWidth: popupContent.aperturePixels,
           labelsX: Math.round(heroLabels.x),
           labelsWidth: Math.round(heroLabels.width),
           buttonsX: Math.round(heroButtons.x),
@@ -926,7 +926,7 @@ Panel {
     open: root.opened
     focusTarget: keyCatcher
     contentWidth: panel.fittedContentWidth(Style.space(430))
-    contentHeight: panel.fittedContentHeight(column.implicitHeight, Style.space(720))
+    contentHeight: panel.fittedContentHeight(popupContent.implicitHeight, Style.space(720))
 
     PanelKeyCatcher {
       id: keyCatcher
@@ -974,7 +974,7 @@ Panel {
       id: panelFlick
       anchors.fill: parent
       contentWidth: width
-      contentHeight: column.implicitHeight
+      contentHeight: popupContent.implicitHeight
       clip: true
       boundsBehavior: Flickable.StopAtBounds
       flickableDirection: Flickable.VerticalFlick
@@ -986,636 +986,11 @@ Panel {
         width: panelFlick.width
         spacing: Style.space(12)
 
-        // ---- action: four segments, no dropdown, no section header ----
-        Row {
-          id: actionRow
+        PopupContent {
+          id: popupContent
+          host: root
+          service: service
           width: parent.width
-          spacing: Style.space(6)
-
-          Repeater {
-            model: [
-              { value: "poweroff",  label: root.tr("action.poweroff") },
-              { value: "reboot",    label: root.tr("action.reboot") },
-              { value: "suspend",   label: root.tr("action.suspend") },
-              { value: "hibernate", label: root.tr("action.hibernate") }
-            ]
-
-            delegate: Key {
-              required property var modelData
-              width: (actionRow.width - Style.space(24) - Style.space(30)) / 4
-              text: modelData.label
-              role: "tab"
-              selected: root.selectedAction === modelData.value
-              uppercase: true
-              tracking: 0.6
-              ink: root.selectedAction === modelData.value ? root.popupAccent : root.popupText
-              accentColor: root.popupAccent
-              surface: root.popupSurface
-              fontSize: Style.font.bodySmall
-              hasCursor: root.cursorActive && root.focusSection === "action"
-                         && root.actionOptions.indexOf(root.selectedAction) === index
-              onClicked: root.selectedAction = modelData.value
-            }
-          }
-
-          Key {
-            width: Style.space(34)
-            text: "✕"
-            role: "ghost"
-            ink: root.popupText
-            accentColor: root.popupAccent
-            surface: root.popupSurface
-            fontSize: Style.font.bodySmall
-            onClicked: root.close()
-          }
-        }
-
-        // ---- hero: the dial, the figure, the escape hatches ----
-        // A lit plate with the accent in it (top light, deep base), a minute
-        // scale around the edge and the figure on the dial's own axis. The
-        // ring is also the input: drag it to set the minutes.
-        Rectangle {
-          id: hero
-          width: parent.width
-          implicitHeight: heroColumn.implicitHeight + Style.space(52)
-          radius: Math.round(Style.cornerRadius * 1.8)
-          border.width: 1
-          border.color: Qt.rgba(root.popupAccent.r, root.popupAccent.g, root.popupAccent.b, 0.12)
-
-          gradient: Gradient {
-            GradientStop { position: 0.0; color: Qt.lighter(root.popupSurface, 1.16) }
-            GradientStop { position: 0.55; color: root.popupSurface }
-            GradientStop { position: 1.0; color: Qt.darker(root.popupSurface, 1.14) }
-          }
-
-          // The accent wash: the plate is not grey, it belongs to the state.
-          Rectangle {
-            anchors.fill: parent
-            anchors.margins: 1
-            radius: hero.radius - 1
-            gradient: Gradient {
-              GradientStop { position: 0.0; color: Qt.rgba(root.popupAccent.r, root.popupAccent.g, root.popupAccent.b, 0.20) }
-              GradientStop { position: 0.6; color: Qt.rgba(root.popupAccent.r, root.popupAccent.g, root.popupAccent.b, 0.05) }
-              GradientStop { position: 1.0; color: Qt.rgba(root.popupAccent.r, root.popupAccent.g, root.popupAccent.b, 0.10) }
-            }
-          }
-
-          // One-pixel specular along the top edge: the line that makes the
-          // plate read as lit rather than filled.
-          Rectangle {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: parent.top
-            anchors.margins: Style.space(3)
-            height: 1
-            radius: 1
-            color: Qt.rgba(1, 1, 1, 0.30)
-          }
-
-          // A hairline grid, barely there: the plate is a device surface, not a
-          // flat card. Static, so it costs nothing.
-          Repeater {
-            model: [0.25, 0.5, 0.75]
-            Rectangle {
-              required property real modelData
-              x: Math.round(hero.width * modelData)
-              y: 0
-              width: 1
-              height: hero.height
-              color: Qt.rgba(root.popupText.r, root.popupText.g, root.popupText.b, 0.045)
-            }
-          }
-          Repeater {
-            model: [0.33, 0.66]
-            Rectangle {
-              required property real modelData
-              x: 0
-              y: Math.round(hero.height * modelData)
-              width: hero.width
-              height: 1
-              color: Qt.rgba(root.popupText.r, root.popupText.g, root.popupText.b, 0.045)
-            }
-          }
-
-          // Dust: a few static specks at low opacity. Static on purpose — a
-          // particle field that animates is a battery tax for decoration.
-          Repeater {
-            model: [[0.10, 0.16, 1], [0.90, 0.14, 1], [0.08, 0.88, 1],
-                    [0.92, 0.86, 1], [0.50, 0.06, 1]]
-            Rectangle {
-              required property var modelData
-              x: Math.round(hero.width * modelData[0])
-              y: Math.round(hero.height * modelData[1])
-              width: modelData[2] + 1
-              height: width
-              radius: width / 2
-              color: Qt.rgba(root.popupAccent.r, root.popupAccent.g, root.popupAccent.b, 0.13)
-            }
-          }
-
-          // HUD corners: the panel reports its own state the way a device
-          // does — small caps, monospace, letterspaced, muted.
-          Text {
-            anchors.left: parent.left
-            anchors.top: parent.top
-            anchors.margins: Style.space(10)
-            textFormat: Text.PlainText
-            text: "SYS_STAT: " + service.status
-            color: root.popupText
-            opacity: 0.68
-            font.family: "monospace"
-            font.pixelSize: Style.font.bodySmall
-            font.letterSpacing: 1.0
-          }
-          Text {
-            anchors.right: parent.right
-            anchors.top: parent.top
-            anchors.margins: Style.space(10)
-            textFormat: Text.PlainText
-            text: "AUTO-CALIBRATION: " + (service.ambientFade ? "ON" : "OFF")
-            color: service.ambientFade ? root.popupAccent : root.popupText
-            opacity: service.ambientFade ? 0.9 : 0.62
-            font.family: "monospace"
-            font.pixelSize: Style.font.bodySmall
-            font.letterSpacing: 1.0
-          }
-          Text {
-            anchors.left: parent.left
-            anchors.bottom: parent.bottom
-            anchors.margins: Style.space(10)
-            textFormat: Text.PlainText
-            text: "T-" + Model.formatTime(service.status === "IDLE" ? root.customMinutes * 60 : service.timeLeft)
-            color: root.popupText
-            opacity: 0.68
-            font.family: "monospace"
-            font.pixelSize: Style.font.bodySmall
-            font.letterSpacing: 1.0
-          }
-          Text {
-            anchors.right: parent.right
-            anchors.bottom: parent.bottom
-            anchors.margins: Style.space(10)
-            textFormat: Text.PlainText
-            text: "TARGET " + root.targetClock
-            color: root.popupText
-            opacity: 0.68
-            font.family: "monospace"
-            font.pixelSize: Style.font.bodySmall
-            font.letterSpacing: 1.0
-          }
-
-          Column {
-            id: heroColumn
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.top: parent.top
-            anchors.topMargin: Style.space(26)
-            spacing: Style.space(8)
-
-            Item {
-              id: dialBox
-              width: Math.min(hero.width - Style.space(24), Style.space(200))
-              height: width
-              anchors.horizontalCenter: parent.horizontalCenter
-
-              HeroRing {
-                id: dial
-                anchors.fill: parent
-                fraction: root.heroFraction
-                running: service.status !== "IDLE"
-                paused: service.status === "PAUSED"
-                tint: root.dialTint
-                ink: root.popupText
-                scrubbing: root.scrubbing
-                scrubMinutes: root.customMinutes
-                scrubMax: 720
-                reducedMotion: service.reducedMotion
-                focused: root.cursorActive && root.focusSection === "dial"
-                deltaMode: service.status !== "IDLE"
-                baseMinutes: root.heroBaseMinutes
-                onScrubbed: function(m) {
-                  root.scrubbing = true
-                  root.customMinutes = Math.max(1, m)
-                }
-                onClicked: if (service.status === "IDLE") root.startTimer()
-                onScrubFinished: function(m) {
-                  var next = Math.max(1, m)
-                  if (service.status !== "IDLE") {
-                    // A drag while running moves the deadline; it does not
-                    // restart the countdown from an absolute angle.
-                    service.setTimer(next, service.action || root.selectedAction)
-                  }
-                  root.customMinutes = next
-                  root.scrubbing = false
-                }
-              }
-
-              Column {
-                anchors.centerIn: parent
-                spacing: Style.space(1)
-
-                // The action being scheduled, as the system's own glyph: the
-                // ring says "when", this says "what".
-                Text {
-                  id: heroActionIcon
-                  anchors.horizontalCenter: parent.horizontalCenter
-                  text: root.glyphForAction(root.selectedAction)
-                  color: root.dialTint
-                  font.family: "monospace"
-                  font.pixelSize: Style.font.title
-                  opacity: 0.9
-                  SequentialAnimation on opacity {
-                    running: service.status === "COUNTDOWN" || service.status === "COUNTDOWN_SCHED"
-                    loops: Animation.Infinite
-                    onRunningChanged: if (!running) heroActionIcon.opacity = 0.9
-                    NumberAnimation { to: 0.35; duration: 420; easing.type: Easing.InOutQuad }
-                    NumberAnimation { to: 0.9;  duration: 420; easing.type: Easing.InOutQuad }
-                  }
-                }
-
-                Text {
-                  id: heroFigure
-                  anchors.horizontalCenter: parent.horizontalCenter
-                  textFormat: Text.PlainText
-                  text: root.heroText
-                  color: (service.status === "COUNTDOWN" || service.status === "COUNTDOWN_SCHED")
-                         ? root.popupUrgent : root.popupText
-                  font.family: "monospace"
-                  font.pixelSize: Math.max(40, Math.round(dialBox.width * 0.25))
-                  font.bold: true
-                  elide: Text.ElideRight
-                }
-
-                Text {
-                  id: heroLabels
-                  anchors.horizontalCenter: parent.horizontalCenter
-                  textFormat: Text.PlainText
-                  text: String(root.heroCaption).toUpperCase()
-                  color: root.popupText
-                  opacity: 0.72
-                  font.family: root.fontFamily
-                  font.pixelSize: Style.font.bodySmall
-                  font.letterSpacing: 1.1
-                  elide: Text.ElideRight
-                }
-
-                // The aperture is the machine's own gesture: open while
-                // there is time, closing as the deadline arrives, shut when
-                // the action fires. No candle, no flame, no glow.
-                ApertureTimer {
-                  id: heroAperture
-                  anchors.horizontalCenter: parent.horizontalCenter
-                  size: Math.round(dialBox.width * 0.30)
-                  fraction: service.status === "IDLE" ? 1 : root.heroFraction
-                  ink: root.popupText
-                  alarmInk: root.popupUrgent
-                  alarm: (service.status === "COUNTDOWN" || service.status === "COUNTDOWN_SCHED")
-                  reducedMotion: service.reducedMotion
-                }
-              }
-            }
-
-            Text {
-              width: hero.width - Style.space(28)
-              anchors.horizontalCenter: parent.horizontalCenter
-              horizontalAlignment: Text.AlignHCenter
-              textFormat: Text.PlainText
-              text: root.heroHint
-              color: root.popupText
-              opacity: 0.62
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.bodySmall
-              elide: Text.ElideRight
-            }
-          }
-        }
-
-        // The three escape hatches, as full-width keys under the plate: at
-        // 11 px a bare glyph is a guess, a word is not.
-        Row {
-          id: heroButtons
-          width: parent.width
-          spacing: Style.space(6)
-          visible: service.status !== "IDLE"
-
-          Key {
-            width: (parent.width - Style.space(12)) / 3
-            text: service.status === "PAUSED" ? root.tr("btn.resume") : root.tr("btn.pause")
-            role: "ghost"
-            ink: root.popupText
-            accentColor: root.popupAccent
-            surface: root.popupSurface
-            fontSize: Style.font.bodySmall
-            hasCursor: root.cursorActive && root.focusSection === "hero" && root.focusIndex === 0
-            onClicked: service.status === "PAUSED" ? service.resume() : service.pause()
-          }
-
-          Key {
-            width: (parent.width - Style.space(12)) / 3
-            text: "+" + service.snoozeMins + " " + root.tr("unit.min")
-            role: "ghost"
-            ink: root.popupText
-            accentColor: root.popupAccent
-            surface: root.popupSurface
-            fontSize: Style.font.bodySmall
-            hasCursor: root.cursorActive && root.focusSection === "hero" && root.focusIndex === 1
-            onClicked: root.snoozeNow()
-          }
-
-          Key {
-            width: (parent.width - Style.space(12)) / 3
-            text: root.tr("btn.cancel")
-            role: "danger"
-            ink: root.popupText
-            accentColor: root.popupAccent
-            dangerColor: root.popupUrgent
-            surface: root.popupSurface
-            fontSize: Style.font.bodySmall
-            hasCursor: root.cursorActive && root.focusSection === "hero" && root.focusIndex === 2
-            onClicked: root.askCancel()
-          }
-        }
-
-        // ---- the dial and the wheel are the input: no presets, no field ----
-
-        // ---- tray: the rare settings, opened in place ----
-        Row {
-          width: parent.width
-          spacing: Style.space(6)
-
-          Repeater {
-            model: [
-              { key: "repeat",  label: root.tr("tray.schedule") },
-              { key: "more",    label: root.tr("tray.more") },
-              { key: "history", label: root.tr("tray.history") }
-            ]
-
-            delegate: Key {
-              required property var modelData
-              width: (parent.width - Style.space(12)) / 3
-              text: (root.trayOpen === modelData.key ? "▾ " : "▸ ") + modelData.label
-              hasCursor: root.cursorActive && root.focusSection === "tray" && root.focusIndex === index
-              role: root.trayOpen === modelData.key ? "selected" : "ghost"
-              ink: root.popupText
-              accentColor: root.popupAccent
-              surface: root.popupSurface
-              fontSize: Style.font.bodySmall
-              onClicked: root.trayOpen = (root.trayOpen === modelData.key ? "" : modelData.key)
-            }
-          }
-        }
-
-        Column {
-          width: parent.width
-          spacing: Style.space(6)
-          visible: root.trayOpen === "repeat"
-
-          ButtonGroup {
-            id: repeatGroup
-            cursorIndex: root.cursorActive && root.focusSection === "repeat"
-                         ? Math.max(0, root.repeatOptions.indexOf(root.repeatMode)) : -1
-            width: parent.width
-            options: [
-              { value: "once",     label: root.tr("repeat.once") },
-              { value: "daily",    label: root.tr("repeat.daily") },
-              { value: "weekdays", label: root.tr("repeat.weekdays") },
-              { value: "weekends", label: root.tr("repeat.weekends") }
-            ]
-            value: root.repeatMode
-            foreground: root.popupText
-            accent: root.popupAccent
-            fontFamily: root.fontFamily
-            fontSize: Style.font.bodySmall
-            onChanged: function(v) { root.repeatMode = v }
-          }
-
-          Row {
-            width: parent.width
-            spacing: Style.space(8)
-
-            Button {
-              id: addScheduleButton
-              hasCursor: root.cursorActive && root.focusSection === "addschedule"
-              width: parent.width - addScheduleHint.implicitWidth - Style.space(8)
-              text: root.tr("repeat.add") + " — " + (root.timeModeAbsolute && root.absoluteTime.trim() !== ""
-                    ? root.absoluteTime.trim() : root.minutesToHhmm(root.customMinutes))
-              fontSize: Style.font.bodySmall
-              foreground: root.popupText
-              fontFamily: root.fontFamily
-              bordered: true
-              onClicked: root.addSchedule()
-            }
-
-            Text {
-              id: addScheduleHint
-              anchors.verticalCenter: parent.verticalCenter
-              textFormat: Text.PlainText
-              text: root.daysLabel(root.daysForRepeat())
-              color: root.popupText
-              opacity: 0.65
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.bodySmall
-            }
-          }
-
-          Column {
-            id: schedulesColumn
-            width: parent.width
-            spacing: Style.space(4)
-            visible: root.scheduleRows.length > 0
-
-            Repeater {
-              model: root.scheduleRows
-
-              delegate: Row {
-                required property var modelData
-                width: parent.width
-                spacing: Style.space(6)
-
-                Text {
-                  width: parent.width - removeSchedule.width - Style.space(6)
-                  textFormat: Text.PlainText
-                  text: "#" + modelData.id + "  " + modelData.at + "  " + modelData.rest
-                  color: root.popupText
-                  opacity: 0.8
-                  font.family: root.fontFamily
-                  font.pixelSize: Style.font.bodySmall
-                  elide: Text.ElideRight
-                  anchors.verticalCenter: parent.verticalCenter
-                }
-
-                PanelActionButton {
-                  id: removeSchedule
-                  hasCursor: root.cursorActive && root.focusSection === "schedules" && root.focusIndex === index
-                  iconText: root.glyphCancel
-                  tooltipText: root.tr("repeat.remove")
-                  foreground: root.popupUrgent
-                  fontFamily: root.fontFamily
-                  onClicked: {
-                    service.scheduleRemove(modelData.id)
-                    Qt.callLater(function() { root.loadSchedules() })
-                  }
-                }
-              }
-            }
-          }
-
-          Text {
-            width: parent.width
-            visible: root.scheduleRows.length === 0
-            textFormat: Text.PlainText
-            text: root.tr("repeat.none")
-            color: root.popupText
-            opacity: 0.55
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.bodySmall
-          }
-        }
-
-        Column {
-          id: advancedColumn
-          width: parent.width
-          spacing: Style.space(6)
-          visible: root.trayOpen === "more"
-
-          // Each row writes the setting straight to shell.json through the
-          // shell's own CLI — the widget's `settings` are read-only here.
-          Repeater {
-            model: [
-              { key: "batteryGuard",      label: root.tr("adv.battery"), on: service.batteryGuard },
-              { key: "quiet",             label: root.tr("adv.quiet"),   on: service.quiet },
-              { key: "waitForInhibitors", label: root.tr("adv.wait"),    on: service.waitForInhibitors },
-              { key: "ambientFade",       label: root.tr("adv.fade"),    on: service.ambientFade }
-            ]
-
-            delegate: Row {
-              required property var modelData
-              required property int index
-              width: parent.width
-              spacing: Style.space(8)
-              readonly property bool hot: root.cursorActive && root.focusSection === "advanced" && root.focusIndex === index
-
-              MouseArea {
-                width: parent.width
-                height: Style.spacing.controlHeight
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onClicked: root.toggleSetting(modelData.key, !modelData.on)
-
-                Text {
-                  anchors.left: parent.left
-                  anchors.verticalCenter: parent.verticalCenter
-                  anchors.leftMargin: parent.hot ? Style.space(2) : 0
-                  textFormat: Text.PlainText
-                  text: (modelData.on ? root.glyphCheck + "  " : "     ") + modelData.label
-                  color: modelData.on ? root.popupAccent : (parent.hot ? root.popupAccent : root.popupText)
-                  font.family: root.fontFamily
-                  font.pixelSize: Style.font.bodySmall
-                  elide: Text.ElideRight
-                  width: parent.width
-                }
-              }
-            }
-          }
-
-          // Dry run lives beside the toggles but is not a shell.json setting —
-          // it is a file the daemon reads at firing time.
-          Row {
-            width: parent.width
-            spacing: Style.space(8)
-            readonly property bool hot: root.cursorActive && root.focusSection === "advanced" && root.focusIndex === 4
-
-            MouseArea {
-              width: parent.width
-              height: Style.spacing.controlHeight
-              hoverEnabled: true
-              cursorShape: Qt.PointingHandCursor
-              onClicked: service.setOverride(service.overrideCommand === "" ? "echo" : "off")
-
-              Text {
-                anchors.left: parent.left
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.leftMargin: parent.parent.hot ? Style.space(2) : 0
-                width: parent.width
-                textFormat: Text.PlainText
-                text: (service.overrideCommand !== "" ? root.glyphCheck + "  " : "     ") + root.tr("adv.dryRun")
-                color: service.overrideCommand !== "" ? root.popupAccent : (parent.parent.hot ? root.popupAccent : root.popupText)
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.bodySmall
-                elide: Text.ElideRight
-              }
-            }
-          }
-
-          Text {
-            width: parent.width
-            visible: service.overrideCommand !== ""
-            textFormat: Text.PlainText
-            text: root.tr("adv.dryRunHint") + " (" + service.overrideCommand + ")"
-            color: root.popupText
-            opacity: 0.6
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.bodySmall
-          }
-
-          Text {
-            width: parent.width
-            visible: service.dnd
-            textFormat: Text.PlainText
-            text: root.tr("adv.dnd")
-            color: root.popupUrgent
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.bodySmall
-          }
-        }
-
-        Column {
-          width: parent.width
-          spacing: Style.space(3)
-          visible: root.trayOpen === "history"
-
-          Repeater {
-            model: root.historyRows
-
-            delegate: Text {
-              required property string modelData
-              width: parent.width
-              textFormat: Text.PlainText
-              text: modelData
-              color: root.popupText
-              opacity: 0.72
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.bodySmall
-              elide: Text.ElideRight
-            }
-          }
-
-          Text {
-            width: parent.width
-            visible: root.historyRows.length === 0
-            textFormat: Text.PlainText
-            text: root.tr("history.empty")
-            color: root.popupText
-            opacity: 0.55
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.bodySmall
-          }
-        }
-
-        // ---- launch: always on the first screen, never below the fold ----
-        Key {
-          id: launchButton
-          width: parent.width
-          text: service.status === "IDLE"
-                ? root.tr("launch.in", String(Math.round(root.customMinutes)))
-                : root.tr("launch.update", String(Math.round(root.customMinutes)))
-          role: "primary"
-          bold: true
-          ink: root.popupText
-          accentColor: root.popupAccent
-          surface: root.popupSurface
-          fontSize: Style.font.body
-          hasCursor: root.cursorActive && root.focusSection === "launch"
-          onClicked: root.startTimer()
         }
       }
     }
