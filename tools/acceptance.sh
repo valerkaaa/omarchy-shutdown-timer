@@ -100,29 +100,17 @@ fi
 check "[[ -f README.md && -f CHANGELOG.md && -f LICENSE ]]" "README/CHANGELOG/LICENSE present"
 check "ls assets/screenshots/dark/*.png assets/screenshots/light/*.png >/dev/null" "screenshots present"
 
-# The card shots must actually show the card, not the desktop behind it. A
-# frame check would need the exact margin the crop was cut with, and a rounded
-# card has no straight line there; the honest test is that the centre (the
-# card surface) differs from the corners (whatever is behind it), plus a size
-# floor so a thumbnail cannot pass by accident.
+# The card shots must actually show the card, not the desktop behind it.
 for t in dark light; do
   for f in 6-popup.png 7-overlay.png; do
-    python3 - "assets/screenshots/$t/$f" <<'PY' || bad "card shot $t/$f is flat or too small"
-import sys
-from PIL import Image
-im = Image.open(sys.argv[1]).convert("RGB")
-w, h = im.size
-if w < 500 or h < 300:
-    sys.exit(1)
-def mean(box):
-    px = list(im.crop(box).resize((8, 8)).getdata())
-    return [sum(p[i] for p in px) / len(px) for i in range(3)]
-corner = mean((0, 0, w // 12, h // 12))
-centre = mean((w // 2 - w // 8, h // 2 - h // 8, w // 2 + w // 8, h // 2 + h // 8))
-sys.exit(0 if max(abs(corner[i] - centre[i]) for i in range(3)) > 10 else 1)
-PY
+    out=$(bash tools/card_check.sh "assets/screenshots/$t/$f" 2>&1)
+    if [[ $? -eq 0 ]]; then
+      ok "card shot $t/$f ($(echo "$out" | sed -E 's/.*delta ([0-9.]+).*/delta \1 of 255/'))"
+    else
+      bad "card shot $t/$f: $out"
+    fi
   done
-done && ok "card screenshots show a card, not the desktop" || bad "a card screenshot is flat"
+done
 
 # 15. install from a clean clone
 check "omarchy plugin validate . " "manifest validates"

@@ -16,6 +16,8 @@
 #
 # ACTION_OVERRIDE=<cmd> подменяет системное действие (тесты: ACTION_OVERRIDE=echo).
 
+umask 077   # state files are the user's business: settings may hold a webhook token
+
 set -u
 
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/plugins/shutdown-timer"
@@ -43,7 +45,13 @@ ACTION_OVERRIDE="${ACTION_OVERRIDE:-}"
 # an E2E can exercise a real firing without powering the machine off.
 OVERRIDE_FILE="$STATE_DIR/action-override"
 
-log() { printf '%s %s\n' "$(date '+%F %T')" "$*" >> "$LOG_FILE"; }
+log() {
+  # A desktop plugin runs for months: keep the log bounded, one previous file.
+  if [[ -f "$LOG_FILE" ]] && (( $(stat -c %s "$LOG_FILE" 2>/dev/null || echo 0) > 262144 )); then
+    mv -f "$LOG_FILE" "$LOG_FILE.1" 2>/dev/null || true
+  fi
+  printf '%s %s\n' "$(date '+%F %T')" "$*" >> "$LOG_FILE"
+}
 
 # ---------- single instance ----------
 

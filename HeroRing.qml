@@ -296,6 +296,31 @@ Item {
     return deg
   }
 
+  // Drag state lives on the root so a script can drive the same code the
+  // pointer drives.
+  property real dragFromValue: 0
+  property real dragFromAngle: 0
+
+  function dragBegin(px, py) {
+    dragFromValue = scrubMinutes
+    dragFromAngle = angleAt(px, py)
+  }
+
+  function dragTo(px, py, fine) {
+    var scale = fine ? 12 : dragMax
+    var raw = dragFromValue + deltaMinutes(dragFromAngle, angleAt(px, py), scale)
+    var m = Math.max(1, Math.min(720, Math.round(raw)))
+    scrubMinutes = m
+    scrubbed(m)
+    return m
+  }
+
+  function pointAt(deg) {
+    var r = Math.min(width, height) / 2 * 0.75
+    var rad = (deg - 90) * Math.PI / 180
+    return { x: width / 2 + Math.cos(rad) * r, y: height / 2 + Math.sin(rad) * r }
+  }
+
   function minutesAt(px, py) {
     return Math.round(angleAt(px, py) / 360 * root.scrubMax)
   }
@@ -327,14 +352,11 @@ Item {
     property bool wasDrag: false
     property real pressX: 0
     property real pressY: 0
-    property real pressAngle: 0
-    property real dragFromValue: 0
 
     onPressed: function(mouse) {
       pressX = mouse.x; pressY = mouse.y
-      pressAngle = root.angleAt(mouse.x, mouse.y)
-      dragFromValue = root.value
       root.fineDrag = (mouse.modifiers & Qt.ShiftModifier) !== 0
+      root.dragBegin(mouse.x, mouse.y)
       active = false
       wasDrag = false
     }
@@ -352,11 +374,7 @@ Item {
       }
       // Relative: the ring never jumps to wherever the press landed. What
       // the hand sweeps is what the value changes by.
-      var scale = root.fineDrag ? 12 : root.dragMax
-      var raw = root.dragFromValue
-                + root.deltaMinutes(pressAngle, root.angleAt(mouse.x, mouse.y), scale)
-      root.scrubMinutes = m
-      root.scrubbed(m)
+      root.dragTo(mouse.x, mouse.y, root.fineDrag)
     }
 
     onClicked: if (!wasDrag) root.clicked()

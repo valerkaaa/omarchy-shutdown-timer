@@ -15,7 +15,7 @@ import "Model.js" as Model
 Column {
   id: content
 
-  property Item host
+  property var host
   property var service
 
   spacing: Style.space(12)
@@ -55,6 +55,14 @@ Column {
       presetsLeft: box(presetsLeft),
       presetsRight: box(presetsRight)
     }
+  }
+
+  // Drives the ring's own drag code: press at one angle, move to another.
+  function debugDrag(fromDeg, toDeg, fine) {
+    var a = dial.pointAt(Number(fromDeg))
+    var b = dial.pointAt(Number(toDeg))
+    dial.dragBegin(a.x, a.y)
+    return dial.dragTo(b.x, b.y, fine === true || fine === "true")
   }
 
   function focusExact() {
@@ -758,6 +766,7 @@ Column {
                 required property int index
                 width: parent.width
                 spacing: Style.space(8)
+                id: settingRow
                 readonly property bool hot: host.cursorActive && host.focusSection === "advanced" && host.focusIndex === index
 
                 MouseArea {
@@ -770,10 +779,10 @@ Column {
                   Text {
                     anchors.left: parent.left
                     anchors.verticalCenter: parent.verticalCenter
-                    anchors.leftMargin: parent.hot ? Style.space(2) : 0
+                    anchors.leftMargin: settingRow.hot ? Style.space(2) : 0
                     textFormat: Text.PlainText
                     text: (modelData.on ? host.glyphCheck + "  " : "     ") + modelData.label
-                    color: modelData.on ? host.popupAccent : (parent.hot ? host.popupAccent : host.popupText)
+                    color: modelData.on ? host.popupAccent : settingRow.hot ? host.popupAccent : host.popupText
                     font.family: host.fontFamily
                     font.pixelSize: Style.font.bodySmall
                     elide: Text.ElideRight
@@ -788,6 +797,7 @@ Column {
             Row {
               width: parent.width
               spacing: Style.space(8)
+              id: dryRow
               readonly property bool hot: host.cursorActive && host.focusSection === "advanced" && host.focusIndex === 4
 
               MouseArea {
@@ -800,11 +810,11 @@ Column {
                 Text {
                   anchors.left: parent.left
                   anchors.verticalCenter: parent.verticalCenter
-                  anchors.leftMargin: parent.parent.hot ? Style.space(2) : 0
+                  anchors.leftMargin: dryRow.hot ? Style.space(2) : 0
                   width: parent.width
                   textFormat: Text.PlainText
                   text: (service.overrideCommand !== "" ? host.glyphCheck + "  " : "     ") + host.tr("adv.dryRun")
-                  color: service.overrideCommand !== "" ? host.popupAccent : (parent.parent.hot ? host.popupAccent : host.popupText)
+                  color: service.overrideCommand !== "" ? host.popupAccent : dryRow.hot ? host.popupAccent : host.popupText
                   font.family: host.fontFamily
                   font.pixelSize: Style.font.bodySmall
                   elide: Text.ElideRight

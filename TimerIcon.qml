@@ -171,13 +171,15 @@ Item {
       visible: root.variant === "paused"
       x: root.iconSize * 0.60
       y: root.iconSize * 0.66
-      spacing: Math.max(1, root.iconSize * 0.06)
+      spacing: Math.max(1, root.iconSize * 0.09)
 
       Repeater {
         model: 2
         Rectangle {
-          width: parent.barW
-          height: parent.barH
+          // Read from the root: `parent` inside a Repeater delegate is the
+          // repeater's parent, which qmllint (and a refactor) can lose.
+          width: Math.max(2, root.iconSize * 0.17)
+          height: Math.max(6, root.iconSize * 0.42)
           radius: width / 2
           color: root.color
           border.width: Math.max(1, root.iconSize * 0.06)

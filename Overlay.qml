@@ -123,7 +123,8 @@ Item {
   // ---------- computed ----------
   readonly property int displayedTime: {
     if (!root.loaded) return 0
-    root.tick  // dependency: re-eval every tick
+    // Re-evaluate every tick: reading the counter is the dependency.
+    if (root.tick < 0) return 0
     if (root.status === "COUNTDOWN" || root.status === "COUNTDOWN_SCHED") {
       if (root.targetTime > 0) return Math.max(0, root.targetTime - Math.floor(Date.now() / 1000))
       return root.timeLeft
@@ -171,10 +172,10 @@ Item {
     stdout: StdioCollector { id: stateOut; waitForEnd: true }
     onExited: function(exitCode) {
       if (exitCode === 0) {
-        var parsed = null
+        let parsed = null
         try { parsed = JSON.parse(String(stateOut.text || "")) } catch(e) {}
         if (parsed && typeof parsed === "object") {
-          var nextStatus = String(parsed.status || "IDLE")
+          const nextStatus = String(parsed.status || "IDLE")
           // An external cancel (control.sh, the bar menu) or a snooze ends the
           // countdown without touching this overlay; close so it does not linger.
           if (root.opened && root.status === "COUNTDOWN" && nextStatus !== "COUNTDOWN") root.close()

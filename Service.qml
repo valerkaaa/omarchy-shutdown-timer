@@ -116,48 +116,43 @@ Item {
   }
 
   // ---------- write settings for daemon ----------
+  // One place builds the JSON, and it reaches the file as base64: a webhook
+  // URL with a quote or a newline can no longer break out of the heredoc.
+  function settingsJson(overrides) {
+    var o = overrides || {}
+    return JSON.stringify({
+      notifyEarlyMins: notifyEarlyMins,
+      overlaySeconds: overlaySeconds,
+      language: language,
+      snoozeMins: snoozeMins,
+      quiet: quiet,
+      batteryGuard: batteryGuard,
+      batteryThreshold: batteryThreshold,
+      waitForInhibitors: waitForInhibitors,
+      ambientFade: ambientFade,
+      fadeMinutes: fadeMinutes,
+      waitForProcesses: waitForProcesses,
+      webhookUrl: o.webhookUrl !== undefined ? o.webhookUrl : webhookUrl,
+      reducedMotion: reducedMotion
+    })
+  }
+
   Process {
     id: writeSettingsProc
     running: false
-    command: ["bash", "-c",
-      "mkdir -p '" + stateDir + "' && cat > '" + stateDir + "/settings.json' <<'SETTINGSEOF'\n" +
-      JSON.stringify({
-        notifyEarlyMins: notifyEarlyMins,
-        overlaySeconds: overlaySeconds,
-        language: language,
-        snoozeMins: snoozeMins,
-        quiet: quiet,
-        batteryGuard: batteryGuard,
-        batteryThreshold: batteryThreshold,
-        waitForInhibitors: waitForInhibitors,
-        ambientFade: ambientFade,
-        fadeMinutes: fadeMinutes,
-        waitForProcesses: waitForProcesses,
-        webhookUrl: webhookUrl,
-        reducedMotion: reducedMotion
-      }) +
-      "\nSETTINGSEOF"]
+    command: ["bash", "-c", "true"]
+  }
+
+  // The command, not the write: a test can run the same string and read the
+  // file back without touching the user's settings.
+  function settingsCommand(overrides) {
+    var payload = Qt.btoa(unescape(encodeURIComponent(settingsJson(overrides))))
+    return "mkdir -p '" + stateDir + "' && printf %s '" + payload
+           + "' | base64 -d > '" + stateDir + "/settings.json'"
   }
 
   function writeSettings() {
-    writeSettingsProc.command = ["bash", "-c",
-      "mkdir -p '" + stateDir + "' && cat > '" + stateDir + "/settings.json' <<'SETTINGSEOF'\n" +
-      JSON.stringify({
-        notifyEarlyMins: notifyEarlyMins,
-        overlaySeconds: overlaySeconds,
-        language: language,
-        snoozeMins: snoozeMins,
-        quiet: quiet,
-        batteryGuard: batteryGuard,
-        batteryThreshold: batteryThreshold,
-        waitForInhibitors: waitForInhibitors,
-        ambientFade: ambientFade,
-        fadeMinutes: fadeMinutes,
-        waitForProcesses: waitForProcesses,
-        webhookUrl: webhookUrl,
-        reducedMotion: reducedMotion
-      }) +
-      "\nSETTINGSEOF"]
+    writeSettingsProc.command = ["bash", "-c", settingsCommand(null)]
     writeSettingsProc.running = true
   }
 

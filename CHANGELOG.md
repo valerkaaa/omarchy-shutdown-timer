@@ -1,3 +1,28 @@
+## v3 stage 13 — the audit pass
+
+- **The ring drag was dead**: the handler read `root.value` (a property that
+  does not exist) and then used an `m` it never computed, so every drag threw
+  a ReferenceError and the value never moved. Drag state now lives on the
+  root (`dragBegin`/`dragTo`), and three tests drive the same code.
+- Hover indent read `parent.hot` on a MouseArea (no such property): the 2 px
+  shift never happened. Ids now.
+- The pause glyph sized itself from `parent.barW` inside a Repeater — fragile
+  scope; it reads `root.iconSize` and is a touch thicker.
+- The `service` id shadowed a member property: renamed `timerService`.
+- `root.tick` stood alone as a dependency statement (no effect): a real `if`.
+- `var` in block scope (hoisted) became `let`/`const`.
+- The log had no rotation (it would grow for months): 256 KB, one previous.
+- State files were world-readable: `umask 077` and 0600 on the files.
+- Settings were written through a heredoc with raw JSON, so a webhook URL
+  containing a quote, a newline or `SETTINGSEOF` could corrupt the file. Now
+  base64 (`Qt.btoa` → `base64 -d`); verified with
+  `http://x/a'b"c SETTINGSEOF\nline2`.
+- The card-shot check was an inline Python heredoc that failed spuriously
+  (PIL's `_imaging` import broke intermittently in the venv). Replaced with
+  `tools/card_check.sh` (ImageMagick): centre against all four corners,
+  prints the delta (27.2 / 68.7 / 22.3 / 71.4 of 255).
+- acceptance: 27 checks, 0 failed.
+
 ## v3 stage 12 — everything on the dial's axis
 
 - The exact input is centred: the row sized itself to 62 % of the plate and

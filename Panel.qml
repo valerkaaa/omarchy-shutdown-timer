@@ -51,7 +51,7 @@ Panel {
   readonly property color popupAccent: Model.readableOn(String(accent), String(popupSurface), 4.5)
 
   // ---------- localization ----------
-  readonly property string language: service.language
+  readonly property string language: timerService.language
   function tr(key, args) { return Model.t(key, language, args) }
 
   // ---------- glyphs (Nerd Font escapes) ----------
@@ -77,10 +77,10 @@ Panel {
   // urgent in the last minute and during the overlay countdown. A scheduled
   // firing counts as urgent from the start — it was not asked for just now.
   readonly property color barColor: {
-    if (service.status === "COUNTDOWN" || service.status === "COUNTDOWN_SCHED") return urgent
-    if (service.status === "ACTIVE" && service.timeLeft <= 60) return urgent
-    if (service.status === "ACTIVE" && service.timeLeft <= 300) return accent
-    if (service.status === "PAUSED") return foreground
+    if (timerService.status === "COUNTDOWN" || timerService.status === "COUNTDOWN_SCHED") return urgent
+    if (timerService.status === "ACTIVE" && timerService.timeLeft <= 60) return urgent
+    if (timerService.status === "ACTIVE" && timerService.timeLeft <= 300) return accent
+    if (timerService.status === "PAUSED") return foreground
     return foreground
   }
 
@@ -93,24 +93,24 @@ Panel {
   }
 
   readonly property string barText: {
-    if (service.status === "IDLE") {
+    if (timerService.status === "IDLE") {
       // a pending schedule shows a dot instead of a figure
       return root.scheduleDot
     }
     root.tick // force re-eval on tick
-    return Model.formatTime(service.timeLeft)
+    return Model.formatTime(timerService.timeLeft)
   }
 
   // "•" marks "schedules exist" while idle (TZ 9.5)
-  readonly property string scheduleDot: service.scheduleCount > 0 ? "•" : ""
+  readonly property string scheduleDot: timerService.scheduleCount > 0 ? "•" : ""
 
   // How much of the timer is left, 0…1, or -1 when nothing runs. The bar
   // mark closes its ring with this: no extra element, one parameter.
   readonly property real remainingFraction: {
-    if (service.status === "IDLE") return -1
-    var total = Number(service.targetTime) - Number(service.startTime)
+    if (timerService.status === "IDLE") return -1
+    var total = Number(timerService.targetTime) - Number(timerService.startTime)
     if (!(total > 0)) return -1
-    return Math.max(0, Math.min(1, Number(service.timeLeft) / total))
+    return Math.max(0, Math.min(1, Number(timerService.timeLeft) / total))
   }
 
   readonly property bool barDimmed: false
@@ -125,20 +125,20 @@ Panel {
   }
   readonly property string barTooltip: {
     if (root.wheelHint !== "") return root.wheelHint
-    if (service.status === "IDLE") return tr("tooltip.idle")
-    if (service.status === "PAUSED") return Model.actionLabel(service.action, language) + " — " + tr("btn.pause").toLowerCase() + " · " + Model.formatTime(service.timeLeft) + " · " + tr("tooltip.cancelHint")
-    if (service.status === "ACTIVE") return Model.actionLabel(service.action, language) + " " + tr("time.in") + " " + Model.formatTime(service.timeLeft) + " · " + tr("tooltip.cancelHint")
-    return tr("tooltip.countdown", Model.formatTime(service.timeLeft))
+    if (timerService.status === "IDLE") return tr("tooltip.idle")
+    if (timerService.status === "PAUSED") return Model.actionLabel(timerService.action, language) + " — " + tr("btn.pause").toLowerCase() + " · " + Model.formatTime(timerService.timeLeft) + " · " + tr("tooltip.cancelHint")
+    if (timerService.status === "ACTIVE") return Model.actionLabel(timerService.action, language) + " " + tr("time.in") + " " + Model.formatTime(timerService.timeLeft) + " · " + tr("tooltip.cancelHint")
+    return tr("tooltip.countdown", Model.formatTime(timerService.timeLeft))
   }
 
   // ---------- menu state ----------
-  property string selectedAction: String(service.defaultAction)
+  property string selectedAction: String(timerService.defaultAction)
   property bool timeModeAbsolute: false
   property string absoluteTime: ""
   property int customMinutes: 30
 
   // Presets come from the setting (TZ 9.8), not a literal in the panel.
-  readonly property var quickPresets: service.presetList
+  readonly property var quickPresets: timerService.presetList
   property string selectedQuick: ""
   // Digits typed on the popup, cleared when the panel closes.
   property string typedMinutes: ""
@@ -154,13 +154,13 @@ Panel {
   property bool confirmOpen: false
 
   function askCancel() {
-    if (service.status === "IDLE") { root.close(); return }
+    if (timerService.status === "IDLE") { root.close(); return }
     root.confirmOpen = true
   }
 
   function doCancel() {
     root.confirmOpen = false
-    service.cancel()
+    timerService.cancel()
     root.close()
   }
 
@@ -169,20 +169,20 @@ Panel {
   property bool scrubbing: false
 
   readonly property string targetClock: {
-    var t = Number(service.targetTime)
-    if (service.status === "IDLE" || !(t > 0)) t = Math.floor(Date.now() / 1000) + Math.round(root.customMinutes) * 60
+    var t = Number(timerService.targetTime)
+    if (timerService.status === "IDLE" || !(t > 0)) t = Math.floor(Date.now() / 1000) + Math.round(root.customMinutes) * 60
     return Qt.formatDateTime(new Date(t * 1000), "HH:mm")
   }
 
-  readonly property int heroBaseMinutes: Math.max(1, Math.round(service.timeLeft / 60))
+  readonly property int heroBaseMinutes: Math.max(1, Math.round(timerService.timeLeft / 60))
   readonly property int heroTotalMinutes: {
-    var t = Number(service.targetTime) - Number(service.startTime)
+    var t = Number(timerService.targetTime) - Number(timerService.startTime)
     return t > 0 ? Math.max(1, Math.round(t / 60)) : 720
   }
   // 0 at the start of the timer, 1 at the deadline: drives the colour of the
   // ring, the way a HUD shifts from calm to alarm.
   readonly property real urgency: {
-    if (service.status === "IDLE") return 0
+    if (timerService.status === "IDLE") return 0
     var f = root.remainingFraction
     if (f < 0) return 0
     return Math.max(0, Math.min(1, 1 - f))
@@ -200,10 +200,10 @@ Panel {
   // proposed time in IDLE, the real remainder while a timer runs.
   readonly property real heroFraction: {
     if (root.scrubbing) {
-      var span = service.status === "IDLE" ? 720 : root.heroTotalMinutes
+      var span = timerService.status === "IDLE" ? 720 : root.heroTotalMinutes
       return Math.max(0, Math.min(1, root.customMinutes / Math.max(1, span)))
     }
-    if (service.status === "IDLE") return 1
+    if (timerService.status === "IDLE") return 1
     var f = root.remainingFraction
     return f < 0 ? 1 : f
   }
@@ -211,21 +211,21 @@ Panel {
   // The one figure on the dial. In IDLE it is the time that would be set,
   // not a sentence: the number is the object, the caption explains it.
   readonly property string heroText: {
-    if (root.scrubbing || service.status === "IDLE")
+    if (root.scrubbing || timerService.status === "IDLE")
       return Model.formatTime(Math.max(1, Math.round(root.customMinutes)) * 60)
-    return Model.formatTime(service.timeLeft)
+    return Model.formatTime(timerService.timeLeft)
   }
 
   readonly property string heroCaption: {
-    if (root.scrubbing && service.status !== "IDLE") {
+    if (root.scrubbing && timerService.status !== "IDLE") {
       var d = root.customMinutes - root.heroBaseMinutes
       return root.tr("hero.delta", (d >= 0 ? "+" : "") + String(d))
     }
-    if (service.status === "IDLE") return root.tr("state.none")
-    if (service.status === "PAUSED") return root.tr("state.paused", Model.actionLabel(service.action, language))
-    if (service.status === "COUNTDOWN" || service.status === "COUNTDOWN_SCHED")
-      return root.tr("state.countdown", Model.actionLabel(service.action, language))
-    return root.tr("state.active", Model.actionLabel(service.action, language))
+    if (timerService.status === "IDLE") return root.tr("state.none")
+    if (timerService.status === "PAUSED") return root.tr("state.paused", Model.actionLabel(timerService.action, language))
+    if (timerService.status === "COUNTDOWN" || timerService.status === "COUNTDOWN_SCHED")
+      return root.tr("state.countdown", Model.actionLabel(timerService.action, language))
+    return root.tr("state.active", Model.actionLabel(timerService.action, language))
   }
 
   // A snooze past the limit is refused by the daemon without an error on the
@@ -238,7 +238,7 @@ Panel {
     interval: 600
     repeat: false
     onTriggered: {
-      if (Number(service.targetTime) <= root.snoozeBefore) {
+      if (Number(timerService.targetTime) <= root.snoozeBefore) {
         root.snoozeRefused = true
         snoozeRefusedTimer.restart()
       }
@@ -252,15 +252,15 @@ Panel {
   }
 
   function snoozeNow() {
-    root.snoozeBefore = Number(service.targetTime)
-    service.snooze(service.snoozeMins)
+    root.snoozeBefore = Number(timerService.targetTime)
+    timerService.snooze(timerService.snoozeMins)
     snoozeCheck.restart()
   }
 
   // One line under the dial: what the ring does, or how to get out.
   readonly property string heroHint: {
     if (root.snoozeRefused) return root.tr("hero.snoozeRefused")
-    if (service.status === "IDLE") return root.tr("state.noneHint")
+    if (timerService.status === "IDLE") return root.tr("state.noneHint")
     return root.tr("hero.scrub")
   }
 
@@ -279,7 +279,7 @@ Panel {
   // Sections in visual order, visibility-aware.
   function cursorSections() {
     var out = []
-    if (service.status !== "IDLE") out.push("hero")
+    if (timerService.status !== "IDLE") out.push("hero")
     out.push("action")
     out.push("dial")
     out.push("tray")
@@ -344,7 +344,7 @@ Panel {
   function activateCursor() {
     ensureCursor()
     if (focusSection === "hero") {
-      if (focusIndex === 0) service.status === "PAUSED" ? service.resume() : service.pause()
+      if (focusIndex === 0) timerService.status === "PAUSED" ? timerService.resume() : timerService.pause()
       else if (focusIndex === 1) root.snoozeNow()
       else root.askCancel()
     } else if (focusSection === "dial") {
@@ -357,13 +357,13 @@ Panel {
       addSchedule()
     } else if (focusSection === "schedules") {
       var row = scheduleRows[focusIndex]
-      if (row) { service.scheduleRemove(row.id); Qt.callLater(function() { root.loadSchedules() }) }
+      if (row) { timerService.scheduleRemove(row.id); Qt.callLater(function() { root.loadSchedules() }) }
     } else if (focusSection === "advanced") {
       if (focusIndex === 4) {
-        service.setOverride(service.overrideCommand === "" ? "echo" : "off")
+        timerService.setOverride(timerService.overrideCommand === "" ? "echo" : "off")
       } else {
         var keys = ["batteryGuard", "quiet", "waitForInhibitors", "ambientFade"]
-        var ons = [service.batteryGuard, service.quiet, service.waitForInhibitors, service.ambientFade]
+        var ons = [timerService.batteryGuard, timerService.quiet, timerService.waitForInhibitors, timerService.ambientFade]
         if (keys[focusIndex]) toggleSetting(keys[focusIndex], !ons[focusIndex])
       }
     } else if (focusSection === "launch") {
@@ -413,7 +413,7 @@ Panel {
   function addSchedule() {
     var hhmm = timeModeAbsolute && absoluteTime.trim() !== "" ? absoluteTime.trim() : minutesToHhmm(customMinutes)
     if (!/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(hhmm)) hhmm = minutesToHhmm(customMinutes)
-    service.scheduleAdd(hhmm, daysForRepeat(), selectedAction)
+    timerService.scheduleAdd(hhmm, daysForRepeat(), selectedAction)
     Qt.callLater(function() { root.loadSchedules() })
   }
 
@@ -438,12 +438,12 @@ Panel {
   }
 
   function loadSchedules() {
-    schedulesProc.command = ["bash", service.controlPath, "schedule", "list"]
+    schedulesProc.command = ["bash", timerService.controlPath, "schedule", "list"]
     schedulesProc.running = true
   }
 
   function loadHistory() {
-    historyProc.command = ["bash", service.controlPath, "history"]
+    historyProc.command = ["bash", timerService.controlPath, "history"]
     historyProc.running = true
   }
 
@@ -483,13 +483,13 @@ Panel {
 
   function wheelAdjust(delta) {
     var next
-    if (service.status === "IDLE") {
+    if (timerService.status === "IDLE") {
       next = Math.max(1, Math.min(720, Math.round(customMinutes) + delta))
       customMinutes = next
-    } else if (service.status === "ACTIVE" || service.status === "PAUSED") {
-      var left = Math.max(1, Math.round(service.timeLeft / 60))
+    } else if (timerService.status === "ACTIVE" || timerService.status === "PAUSED") {
+      var left = Math.max(1, Math.round(timerService.timeLeft / 60))
       next = Math.max(1, Math.min(720, left + delta))
-      service.setTimer(next, service.action || selectedAction)
+      timerService.setTimer(next, timerService.action || selectedAction)
       customMinutes = next
     } else {
       return
@@ -499,7 +499,7 @@ Panel {
   }
 
   function quickSet(mins) {
-    service.setTimer(mins, selectedAction)
+    timerService.setTimer(mins, selectedAction)
     close()
   }
 
@@ -507,16 +507,16 @@ Panel {
     var mins = Math.round(customMinutes)
     if (!mins || mins < 1) mins = 1
     if (mins > 720) mins = 720
-    service.setTimer(mins, selectedAction)
+    timerService.setTimer(mins, selectedAction)
     close()
   }
 
   function cancelTimer() {
-    service.cancel()
+    timerService.cancel()
   }
 
   function resetTimer() {
-    service.reset()
+    timerService.reset()
   }
 
   // Write a boolean setting back to shell.json through the shell CLI. The
@@ -529,16 +529,16 @@ Panel {
 
   // ---------- service ----------
   Service {
-    id: service
+    id: timerService
     settings: root.settings
     notifyInstance: true
   }
 
   // Summon the fullscreen overlay when a countdown begins.
   Connections {
-    target: service
+    target: timerService
     function onStatusChanged() {
-      if (service.status === "COUNTDOWN") {
+      if (timerService.status === "COUNTDOWN") {
         Quickshell.execDetached(["omarchy-shell", "-q", "honor.shutdown-timer:overlay", "show"])
       }
     }
@@ -550,7 +550,7 @@ Panel {
     id: tickTimer
     interval: 1000
     repeat: true
-    running: root.opened || (service.loaded && service.status !== "IDLE")
+    running: root.opened || (timerService.loaded && timerService.status !== "IDLE")
     triggeredOnStart: true
     onTriggered: { root.tick++ }
   }
@@ -564,34 +564,34 @@ Panel {
     function open(): string { root.open(); return "ok" }
     function close(): string { root.close(); return "ok" }
     function toggle(): string { root.toggle(); return "ok" }
-    function refresh(): string { service.refresh(); return "ok" }
+    function refresh(): string { timerService.refresh(); return "ok" }
 
     function status(): string {
-      if (!service.loaded) return "loading"
-      return service.status + " " + (service.action || "none") + " " + String(service.timeLeft)
+      if (!timerService.loaded) return "loading"
+      return timerService.status + " " + (timerService.action || "none") + " " + String(timerService.timeLeft)
     }
 
     function set(payloadJson: string): string {
       var p = ({}); try { p = JSON.parse(payloadJson || "{}") } catch(e) {}
-      if (p.minutes !== undefined) service.setTimer(p.minutes, p.action || "")
-      else if (p.seconds !== undefined) service.setTimer(Math.round(p.seconds / 60), p.action || "")
-      else if (p.hours !== undefined) service.setTimer(p.hours * 60, p.action || "")
-      else if (p.absolute !== undefined) service.setTimerAbsolute(p.absolute, p.action || "")
+      if (p.minutes !== undefined) timerService.setTimer(p.minutes, p.action || "")
+      else if (p.seconds !== undefined) timerService.setTimer(Math.round(p.seconds / 60), p.action || "")
+      else if (p.hours !== undefined) timerService.setTimer(p.hours * 60, p.action || "")
+      else if (p.absolute !== undefined) timerService.setTimerAbsolute(p.absolute, p.action || "")
       return "ok"
     }
 
-    function cancel(): string { service.cancel(); return "ok" }
-    function snooze(mins: string): string { service.snooze(parseInt(mins || "5", 10)); return "ok" }
-    function pause(): string { service.pause(); return "ok" }
-    function resume(): string { service.resume(); return "ok" }
-    function reset(): string { service.reset(); return "ok" }
+    function cancel(): string { timerService.cancel(); return "ok" }
+    function snooze(mins: string): string { timerService.snooze(parseInt(mins || "5", 10)); return "ok" }
+    function pause(): string { timerService.pause(); return "ok" }
+    function resume(): string { timerService.resume(); return "ok" }
+    function reset(): string { timerService.reset(); return "ok" }
 
     function scheduleAdd(payloadJson: string): string {
       var p = ({}); try { p = JSON.parse(payloadJson || "{}") } catch(e) {}
-      if (p.at) service.scheduleAdd(p.at, p.days || "1,2,3,4,5,6,7", p.action || "")
+      if (p.at) timerService.scheduleAdd(p.at, p.days || "1,2,3,4,5,6,7", p.action || "")
       return "ok"
     }
-    function scheduleRemove(id: string): string { service.scheduleRemove(id); return "ok" }
+    function scheduleRemove(id: string): string { timerService.scheduleRemove(id); return "ok" }
     function show(): string { root.open(); return "ok" }
     function hide(): string { root.close(); return "ok" }
 
@@ -655,7 +655,7 @@ Panel {
     // without a pointer: feed it a point in the ring's coordinates.
     function debugBoxes(mm: string, ss: string): string {
       popupContent.debugBoxes(mm, ss)
-      return JSON.stringify({ status: service.status, left: service.timeLeft })
+      return JSON.stringify({ status: timerService.status, left: timerService.timeLeft })
     }
 
     // Opens a tray section so the layout check can walk it.
@@ -663,6 +663,17 @@ Panel {
       root.open()
       root.trayOpen = key
       return JSON.stringify({ tray: root.trayOpen })
+    }
+
+    // Proves the settings writer survives a hostile value: quotes, a newline,
+    // a heredoc terminator.
+    function debugSetWebhook(url: string): string {
+      return timerService.settingsCommand({ webhookUrl: url })
+    }
+
+    function debugDrag(fromDeg: string, toDeg: string, fine: string): string {
+      var m = popupContent.debugDrag(fromDeg, toDeg, fine)
+      return JSON.stringify({ minutes: m })
     }
 
     function debugGeom(): string {
@@ -677,41 +688,41 @@ Panel {
     // Exact input, provable from a script: the same parser the field uses.
     function debugExact(text: string): string {
       popupContent.submitExact(text)
-      return JSON.stringify({ status: service.status, left: service.timeLeft })
+      return JSON.stringify({ status: timerService.status, left: timerService.timeLeft })
     }
 
     // The confirm sheet, provable from a script.
     function debugConfirm(): string {
       root.askCancel()
-      return JSON.stringify({ open: root.confirmOpen, status: service.status })
+      return JSON.stringify({ open: root.confirmOpen, status: timerService.status })
     }
     function debugConfirmAnswer(answer: string): string {
       if (String(answer) === "yes") root.doCancel()
       else root.confirmOpen = false
-      return JSON.stringify({ open: root.confirmOpen, status: service.status })
+      return JSON.stringify({ open: root.confirmOpen, status: timerService.status })
     }
 
     // Hold-to-cancel, provable from a script: start the hold, wait, end it.
     function debugHoldStart(): string {
-      if (service.status === "IDLE") return JSON.stringify({ started: false, reason: "idle" })
+      if (timerService.status === "IDLE") return JSON.stringify({ started: false, reason: "idle" })
       root.holding = true
       holdFill.restart()
       holdTimer.restart()
-      return JSON.stringify({ started: true, status: service.status })
+      return JSON.stringify({ started: true, status: timerService.status })
     }
     function debugHoldEnd(): string {
       var fired = holdTimer.fired
       holdTimer.stop(); holdFill.stop()
       root.holding = false; root.holdProgress = 0
-      if (fired) service.cancel()
-      return JSON.stringify({ fired: fired, status: service.status })
+      if (fired) timerService.cancel()
+      return JSON.stringify({ fired: fired, status: timerService.status })
     }
 
     // The wheel gesture, provable from a script: same code path the handler
     // calls, without a pointer.
     function debugWheel(step: string): string {
       root.wheelAdjust(parseInt(step || "5", 10))
-      return JSON.stringify({ minutes: root.customMinutes, status: service.status,
+      return JSON.stringify({ minutes: root.customMinutes, status: timerService.status,
                               hint: root.wheelHint })
     }
 
@@ -737,7 +748,7 @@ Panel {
         customMinutes: root.customMinutes,
         timeModeAbsolute: root.timeModeAbsolute,
         repeatMode: root.repeatMode,
-        overrideCommand: service.overrideCommand
+        overrideCommand: timerService.overrideCommand
       })
     }
 
@@ -784,9 +795,9 @@ Panel {
   // be redrawn per state, and the label can collapse to nothing in IDLE so the
   // widget takes a single icon slot when idle.
   readonly property string iconVariant: {
-    if (service.status === "COUNTDOWN" || service.status === "COUNTDOWN_SCHED") return "countdown"
-    if (service.status === "PAUSED") return "paused"
-    if (service.status === "ACTIVE") return "active"
+    if (timerService.status === "COUNTDOWN" || timerService.status === "COUNTDOWN_SCHED") return "countdown"
+    if (timerService.status === "PAUSED") return "paused"
+    if (timerService.status === "ACTIVE") return "active"
     return "idle"
   }
 
@@ -813,7 +824,7 @@ Panel {
         // on the live bar at scale 1.25: 24 px → 18 px of ink, 20 px → 16,
         // 16 px → 12.8, 15 px → 12.)
         iconSize: Style.bar.iconCanvas
-        reducedMotion: service.reducedMotion
+        reducedMotion: timerService.reducedMotion
         color: root.barColor
         cutout: root.barBackground
         variant: root.iconVariant
@@ -853,7 +864,7 @@ Panel {
 
     onPressed: function(mouse) {
       if (mouse.button !== Qt.LeftButton) return
-      if (service.status === "IDLE") return
+      if (timerService.status === "IDLE") return
       root.holding = true
       holdFill.restart()
       holdTimer.restart()
@@ -872,7 +883,7 @@ Panel {
       root.holding = false
       root.holdProgress = 0
       holdConsumed = fired
-      if (fired) service.cancel()
+      if (fired) timerService.cancel()
     }
 
     onCanceled: {
@@ -977,7 +988,7 @@ Panel {
       }
       onDeleteRequested: {
         if (root.cursorActive && root.focusSection === "schedules" && root.scheduleRows[root.focusIndex]) {
-          service.scheduleRemove(root.scheduleRows[root.focusIndex].id)
+          timerService.scheduleRemove(root.scheduleRows[root.focusIndex].id)
           Qt.callLater(function() { root.loadSchedules() })
         }
       }
@@ -992,9 +1003,9 @@ Panel {
           if (n >= 1) root.customMinutes = Math.min(720, n)
           return
         }
-        if (t === "c" || t === "C") service.cancel()
-        else if (t === "p" || t === "P") service.status === "PAUSED" ? service.resume() : service.pause()
-        else if (t === "s" || t === "S") service.snooze(5)
+        if (t === "c" || t === "C") timerService.cancel()
+        else if (t === "p" || t === "P") timerService.status === "PAUSED" ? timerService.resume() : timerService.pause()
+        else if (t === "s" || t === "S") timerService.snooze(5)
         else if (t === "r" || t === "R") root.resetTimer()
       }
     }
@@ -1018,7 +1029,7 @@ Panel {
         PopupContent {
           id: popupContent
           host: root
-          service: service
+          service: timerService
           width: parent.width
         }
       }
@@ -1057,8 +1068,8 @@ Panel {
           width: parent.width
           horizontalAlignment: Text.AlignHCenter
           textFormat: Text.PlainText
-          text: root.tr("confirm.body", [Model.formatTime(service.timeLeft),
-                        Model.actionLabel(service.action || root.selectedAction, root.language)])
+          text: root.tr("confirm.body", [Model.formatTime(timerService.timeLeft),
+                        Model.actionLabel(timerService.action || root.selectedAction, root.language)])
           color: root.popupText
           opacity: 0.7
           wrapMode: Text.WordWrap
@@ -1100,7 +1111,7 @@ Panel {
   onOpenedChanged: {
     if (opened) {
       panelFlick.contentY = 0
-      service.refresh()
+      timerService.refresh()
       cursorActive = false
       focusSection = "action"
       focusIndex = 0
@@ -1108,12 +1119,12 @@ Panel {
       confirmOpen = false
       root.loadSchedules()
       root.loadHistory()
-      selectedAction = String(service.defaultAction)
+      selectedAction = String(timerService.defaultAction)
       selectedQuick = ""
       typedMinutes = ""
       timeModeAbsolute = false
-      if (service.status !== "IDLE" && service.timeLeft > 0) {
-        customMinutes = Math.max(1, Math.min(1440, Math.round(service.timeLeft / 60)))
+      if (timerService.status !== "IDLE" && timerService.timeLeft > 0) {
+        customMinutes = Math.max(1, Math.min(1440, Math.round(timerService.timeLeft / 60)))
       } else {
         customMinutes = 30
       }

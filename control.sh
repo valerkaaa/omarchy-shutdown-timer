@@ -20,6 +20,8 @@
 # Команды идут двумя путями: файл control (читается демоном и удаляется) и
 # FIFO-пробуждение, чтобы демон не просыпался каждую секунду в покое.
 #
+umask 077   # state files are the user's business: settings may hold a webhook token
+
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

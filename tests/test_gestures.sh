@@ -39,6 +39,21 @@ got=$("${IPC[@]}" debugDial "200,100" | json "['minutes']")
 got=$("${IPC[@]}" debugDial "100,200" | json "['minutes']")
 [[ "$got" == "60" ]] && ok "dial: 6 o'clock is 60 min of 120" || bad "dial bottom gave '$got'"
 
+# ---- the drag is relative: a quarter turn is +15 min, Shift a quarter of 12
+"${CTL[@]}" cancel >/dev/null 2>&1; sleep 0.5
+before=$("${IPC[@]}" debugDrag 0 0 false | json "['minutes']")
+after=$("${IPC[@]}" debugDrag 0 90 false | json "['minutes']")
+[[ "$after" -eq $(( before + 15 )) ]] && ok "drag: a quarter turn adds 15 min ($before -> $after)" || bad "drag $before -> $after (want +15)"
+
+before=$("${IPC[@]}" debugDrag 0 0 false | json "['minutes']")
+after=$("${IPC[@]}" debugDrag 0 90 true | json "['minutes']")
+[[ "$after" -eq $(( before + 3 )) ]] && ok "drag: Shift quarter turn adds 3, not 15 ($before -> $after)" || bad "fine drag $before -> $after (want +3)"
+
+before=$("${IPC[@]}" debugDrag 0 0 false | json "['minutes']")
+after=$("${IPC[@]}" debugDrag 0 0 false | json "['minutes']")
+[[ "$after" -eq "$before" ]] && ok "drag: a press without movement changes nothing" || bad "idle drag moved $before -> $after"
+"${CTL[@]}" cancel >/dev/null 2>&1; sleep 0.4
+
 # ---- the wheel: +5 and -15 in IDLE, +10 while running
 "${CTL[@]}" set 30 >/dev/null 2>&1; sleep 1
 got=$("${IPC[@]}" debugWheel 5 | json "['minutes']")
