@@ -204,6 +204,15 @@ days_label() { # 1,2,3 -> "Пн Ср" / "Mon Wed"
 
 # ---------- commands ----------
 
+cmd_set_seconds() {
+  local secs="${1:? set-seconds <seconds>}" action="${2:-poweroff}"
+  [[ "$secs" =~ ^[0-9]+$ ]] && (( secs >= 5 && secs <= 86400 )) || { echo "ERROR: seconds must be 5..86400" >&2; exit 1; }
+  valid_action "$action" || { echo "ERROR: action must be poweroff|reboot|suspend|hibernate|lock" >&2; exit 1; }
+  ensure_daemon
+  send_command "set-secs:${secs}:${action}"
+  echo "Timer set: $(action_label "$action") in ${secs}s"
+}
+
 cmd_set() {
   local mins="${1:? set <mins>}" action="${2:-poweroff}"
   [[ "$mins" =~ ^[0-9]+$ ]] && (( mins >= 1 && mins <= 1440 )) || { echo "ERROR: mins must be 1..1440" >&2; exit 1; }
@@ -339,6 +348,7 @@ main() {
     send)        send_command "${1:? send <cmd>}" ;;
     get-state)   get_state ;;
     set)         cmd_set "$@" ;;
+    set-seconds) cmd_set_seconds "$@" ;;
     set-abs|at)  cmd_at "$@" ;;
     cancel)      cmd_cancel ;;
     snooze)      cmd_snooze "${1:-5}" ;;

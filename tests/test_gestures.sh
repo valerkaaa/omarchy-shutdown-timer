@@ -35,9 +35,9 @@ trap cleanup EXIT
 got=$("${IPC[@]}" debugDial "100,0" | json "['minutes']")
 [[ "$got" == "0" ]] && ok "dial: 12 o'clock is 0 min" || bad "dial top gave '$got'"
 got=$("${IPC[@]}" debugDial "200,100" | json "['minutes']")
-[[ "$got" == "180" ]] && ok "dial: 3 o'clock is 180 min" || bad "dial right gave '$got'"
+[[ "$got" == "60" ]] && ok "dial: 3 o'clock is 60 min of 120" || bad "dial right gave '$got'"
 got=$("${IPC[@]}" debugDial "100,200" | json "['minutes']")
-[[ "$got" == "360" ]] && ok "dial: 6 o'clock is 360 min" || bad "dial bottom gave '$got'"
+[[ "$got" == "120" ]] && ok "dial: 6 o'clock is 120 min" || bad "dial bottom gave '$got'"
 
 # ---- the wheel: +5 and -15 in IDLE, +10 while running
 "${CTL[@]}" set 30 >/dev/null 2>&1; sleep 1
@@ -48,6 +48,15 @@ got=$("${IPC[@]}" debugWheel -15 | json "['minutes']")
 "${CTL[@]}" set 30 >/dev/null 2>&1; sleep 1
 got=$("${IPC[@]}" debugWheel 10 | json "['minutes']")
 [[ "$got" == "40" ]] && ok "wheel: +10 while running -> 40" || bad "wheel running gave '$got'"
+
+# ---- exact input: minutes and seconds
+"${CTL[@]}" cancel >/dev/null 2>&1; sleep 0.5
+"${IPC[@]}" debugExact "1" >/dev/null; sleep 1
+st=$("${CTL[@]}" status | head -1)
+[[ "$st" == "Status: ACTIVE" ]] && ok "exact: '1' starts a one-minute timer" || bad "exact 1 left '$st'"
+left=$("${IPC[@]}" debugExact "30s" | json "['left']"); sleep 1
+(( left <= 30 && left >= 25 )) && ok "exact: '30s' starts a 30 second timer ($left s)" || bad "exact 30s left=$left"
+"${CTL[@]}" cancel >/dev/null 2>&1; sleep 0.5
 
 # ---- hold-to-cancel: a short hold must not cancel, a long one must
 "${CTL[@]}" set 30 >/dev/null 2>&1; sleep 1

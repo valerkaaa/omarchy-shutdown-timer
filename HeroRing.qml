@@ -243,32 +243,41 @@ Item {
   Item {
     id: knob
     visible: root.sweep > 0.5
-    width: root.px(12) + root.kick * root.px(3)
+    width: root.px(18) + root.kick * root.px(3)
     height: width
     x: root.headX - width / 2
     y: root.headY - height / 2
 
+    // Metal: a dark rim, a body that is lighter at the top, and one
+    // specular. The same three layers the keys use, at 18 px.
     Rectangle {
       anchors.fill: parent
       radius: width / 2
-      color: Qt.darker(root.ink, 2.4)
-      border.width: Math.max(1, root.px(1.6))
-      border.color: root.tint
+      border.width: Math.max(1, root.px(1.5))
+      border.color: Qt.darker(root.ink, 1.8)
+      gradient: Gradient {
+        orientation: Gradient.Vertical
+        GradientStop { position: 0.0; color: Qt.lighter(root.ink, 1.35) }
+        GradientStop { position: 0.45; color: root.ink }
+        GradientStop { position: 1.0; color: Qt.darker(root.ink, 1.5) }
+      }
     }
+    // A thin accent line inside the rim keeps the knob belonging to the ring.
     Rectangle {
       anchors.fill: parent
-      anchors.margins: Math.max(1, root.px(1.2))
+      anchors.margins: Math.max(2, root.px(2.5))
       radius: width / 2
-      color: root.tint
-      opacity: 0.9
+      color: "transparent"
+      border.width: 1
+      border.color: Qt.rgba(root.tint.r, root.tint.g, root.tint.b, 0.85)
     }
     Rectangle {
-      width: Math.max(2, root.px(2.4))
+      width: Math.max(2, root.px(3))
       height: width
       radius: width / 2
-      x: parent.width * 0.26
-      y: parent.height * 0.22
-      color: Qt.rgba(1, 1, 1, 0.75)
+      x: parent.width * 0.24
+      y: parent.height * 0.18
+      color: Qt.rgba(1, 1, 1, 0.85)
     }
   }
 

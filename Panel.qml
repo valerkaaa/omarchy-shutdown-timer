@@ -651,6 +651,12 @@ Panel {
     // without relying on pixels.
     // The dial's angle math, so the scrub gesture can be proven from a script
     // without a pointer: feed it a point in the ring's coordinates.
+    // Exact input, provable from a script: the same parser the field uses.
+    function debugExact(text: string): string {
+      popupContent.submitExact(text)
+      return JSON.stringify({ status: service.status, left: service.timeLeft })
+    }
+
     // The confirm sheet, provable from a script.
     function debugConfirm(): string {
       root.askCancel()
@@ -736,15 +742,15 @@ Panel {
           scrolls: popupContent.implicitHeight > panelFlick.height
         },
         hero: {
-          height: Math.round(hero.height),
+          height: Math.round(popupContent.heroItem.height),
           iconWidth: popupContent.aperturePixels,
-          labelsX: Math.round(heroLabels.x),
-          labelsWidth: Math.round(heroLabels.width),
-          buttonsX: Math.round(heroButtons.x),
-          buttonsWidth: Math.round(heroButtons.width),
-          // the label column must start after the icon and end before the buttons
-          iconClearsLabels: heroLabels.x >= heroAperture.width,
-          labelsClearButtons: !heroButtons.visible || (heroLabels.x + heroLabels.width) <= heroButtons.x
+          labelsX: Math.round(popupContent.labelsItem.x),
+          labelsWidth: Math.round(popupContent.labelsItem.width),
+          buttonsX: Math.round(popupContent.buttonsItem.x),
+          buttonsWidth: Math.round(popupContent.buttonsItem.width),
+          iconClearsLabels: popupContent.labelsItem.x >= popupContent.aperturePixels,
+          labelsClearButtons: !popupContent.buttonsItem.visible
+                              || (popupContent.labelsItem.x + popupContent.labelsItem.width) <= popupContent.buttonsItem.x
         }
       })
     }

@@ -24,9 +24,37 @@ Column {
   readonly property Item dialItem: dial
   readonly property Item heroItem: hero
   readonly property int figurePixels: heroFigure.font.pixelSize
-  readonly property int aperturePixels: heroAperture.width
+  readonly property int aperturePixels: dialBox.width
+  readonly property Item labelsItem: heroLabels
+  readonly property Item buttonsItem: heroButtons
 
   function minutesAt(px, py) { return dial.minutesAt(px, py) }
+
+  // "1" → 60 s, "1:30" → 90 s, "30s" → 30 s. Anything under five seconds is
+  // refused: the overlay would eat it.
+  function submitExact(raw) {
+    var t = String(raw === undefined || raw === null ? "" : raw).trim().toLowerCase()
+    if (t === "") return
+    var secs = 0
+    if (t.indexOf(":") >= 0) {
+      var parts = t.split(":")
+      for (var i = 0; i < parts.length; i++) {
+        var v = parseInt(parts[i], 10)
+        if (isNaN(v)) return
+        secs = secs * 60 + v
+      }
+    } else if (/^[0-9]+s$/.test(t)) {
+      secs = parseInt(t, 10)
+    } else if (/^[0-9]+$/.test(t)) {
+      secs = parseInt(t, 10) * 60
+    } else {
+      return
+    }
+    if (secs < 5) return
+    if (secs % 60 === 0) service.setTimer(Math.round(secs / 60), host.selectedAction)
+    else service.setTimerSeconds(secs, host.selectedAction)
+    exactField.text = ""
+  }
   function scrubMax() { return dial.scrubMax }
 
           // ---- action: four segments, no dropdown, no section header ----
@@ -207,6 +235,54 @@ Column {
               font.letterSpacing: 1.0
             }
 
+            // Quick times sit around the dial, three on each side, so the
+            // ring stays the only thing in the centre.
+            Column {
+              anchors.left: parent.left
+              anchors.leftMargin: Style.space(4)
+              anchors.verticalCenter: parent.verticalCenter
+              spacing: Style.space(6)
+
+              Repeater {
+                model: host.quickPresets.slice(0, 3)
+                delegate: Key {
+                  required property int modelData
+                  width: Style.space(52)
+                  height: Style.space(26)
+                  text: String(modelData)
+                  role: host.customMinutes === modelData ? "selected" : "ghost"
+                  ink: host.popupText
+                  accentColor: host.popupAccent
+                  surface: host.popupSurface
+                  fontSize: Style.font.bodySmall
+                  onClicked: host.customMinutes = modelData
+                }
+              }
+            }
+
+            Column {
+              anchors.right: parent.right
+              anchors.rightMargin: Style.space(4)
+              anchors.verticalCenter: parent.verticalCenter
+              spacing: Style.space(6)
+
+              Repeater {
+                model: host.quickPresets.slice(3, 6)
+                delegate: Key {
+                  required property int modelData
+                  width: Style.space(52)
+                  height: Style.space(26)
+                  text: String(modelData)
+                  role: host.customMinutes === modelData ? "selected" : "ghost"
+                  ink: host.popupText
+                  accentColor: host.popupAccent
+                  surface: host.popupSurface
+                  fontSize: Style.font.bodySmall
+                  onClicked: host.customMinutes = modelData
+                }
+              }
+            }
+
             Column {
               id: heroColumn
               anchors.horizontalCenter: parent.horizontalCenter
@@ -230,7 +306,7 @@ Column {
                   ink: host.popupText
                   scrubbing: host.scrubbing
                   scrubMinutes: host.customMinutes
-                  scrubMax: 720
+                  scrubMax: 120
                   reducedMotion: service.reducedMotion
                   focused: host.cursorActive && host.focusSection === "dial"
                   deltaMode: service.status !== "IDLE"
@@ -278,12 +354,18 @@ Column {
                   Text {
                     id: heroFigure
                     anchors.horizontalCenter: parent.horizontalCenter
+                    width: Math.round(dialBox.width * 0.74)
+                    horizontalAlignment: Text.AlignHCenter
+                    // Fit, never overflow: a five-glyph figure or a long
+                    // locale shrinks instead of crossing the ring.
+                    fontSizeMode: Text.Fit
+                    minimumPixelSize: 18
                     textFormat: Text.PlainText
                     text: host.heroText
                     color: (service.status === "COUNTDOWN" || service.status === "COUNTDOWN_SCHED")
                            ? host.popupUrgent : host.popupText
                     font.family: "monospace"
-                    font.pixelSize: Math.max(40, Math.round(dialBox.width * 0.25))
+                    font.pixelSize: Math.max(42, Math.round(dialBox.width * 0.26))
                     font.bold: true
                     elide: Text.ElideRight
                   }
@@ -291,6 +373,10 @@ Column {
                   Text {
                     id: heroLabels
                     anchors.horizontalCenter: parent.horizontalCenter
+                    width: Math.round(dialBox.width * 0.74)
+                    horizontalAlignment: Text.AlignHCenter
+                    wrapMode: Text.WordWrap
+                    maximumLineCount: 2
                     textFormat: Text.PlainText
                     text: String(host.heroCaption).toUpperCase()
                     color: host.popupText
@@ -301,19 +387,43 @@ Column {
                     elide: Text.ElideRight
                   }
 
-                  // The aperture is the machine's own gesture: open while
-                  // there is time, closing as the deadline arrives, shut when
-                  // the action fires. No candle, no flame, no glow.
-                  ApertureTimer {
-                    id: heroAperture
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    size: Math.round(dialBox.width * 0.30)
-                    fraction: service.status === "IDLE" ? 1 : host.heroFraction
-                    ink: host.popupText
-                    alarmInk: host.popupUrgent
-                    alarm: (service.status === "COUNTDOWN" || service.status === "COUNTDOWN_SCHED")
-                    reducedMotion: service.reducedMotion
+
+                }
+              }
+
+              // Exact input: "1" is a minute, "1:30" and "30s" are seconds.
+              Row {
+                width: Math.round(hero.width * 0.62)
+                anchors.horizontalCenter: parent.horizontalCenter
+                spacing: Style.space(6)
+
+                TextField {
+                  id: exactField
+                  width: parent.width - startKey.width - parent.spacing
+                  height: Style.space(30)
+                  placeholderText: Model.formatTime(Math.round(host.customMinutes) * 60)
+                  font.family: "monospace"
+                  font.pixelSize: Style.font.body
+                  color: host.popupText
+                  horizontalAlignment: Text.AlignHCenter
+                  background: BorderSurface {
+                    color: "transparent"
+                    borderSpec: Border.controlSpec("normal", host.popupText, host.popupAccent)
+                    radius: Style.cornerRadius
                   }
+                  onAccepted: content.submitExact(text)
+                }
+
+                Key {
+                  id: startKey
+                  width: Style.space(38)
+                  text: "▶"
+                  role: "ghost"
+                  ink: host.popupText
+                  accentColor: host.popupAccent
+                  surface: host.popupSurface
+                  fontSize: Style.font.bodySmall
+                  onClicked: content.submitExact(exactField.text)
                 }
               }
 

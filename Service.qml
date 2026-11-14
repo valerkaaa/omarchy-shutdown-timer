@@ -194,6 +194,12 @@ Item {
     sendCommand("set:" + String(mins) + ":" + act)
   }
 
+  // The short end of the range: 30 s, 1:30, 90 s.
+  function setTimerSeconds(secs, act) {
+    if (act === undefined || act === "") act = defaultAction
+    sendCommand("set-secs:" + String(Math.round(secs)) + ":" + act)
+  }
+
   function setTimerAbsolute(hhmm, act) {
     if (act === undefined || act === "") act = defaultAction
     sendCommand("set-abs:" + hhmm + ":" + act)

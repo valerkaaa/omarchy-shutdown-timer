@@ -442,6 +442,23 @@ process_command() {
       arm_timer $((mins * 60)) "$act" "relative" 0
       append_history "set" "$act"
       ;;
+    set-secs:*)
+      # Seconds exist for the short end of the range: 30 s, 1:30, 90 s. The
+      # minutes command keeps its integer contract for scripts and tests.
+      local rest="${cmd#set-secs:}"
+      local secs="${rest%%:*}" act="${rest#*:}"
+      [[ "$act" == "$rest" ]] && act="poweroff"
+      if ! [[ "$secs" =~ ^[0-9]+$ ]] || (( secs < 5 || secs > 86400 )); then
+        log "rejected set-secs: '$secs' is not 5..86400 seconds"
+        return 0
+      fi
+      if ! valid_action "$act"; then
+        log "rejected set-secs: unknown action '$act'"
+        return 0
+      fi
+      arm_timer "$secs" "$act" "relative" 0
+      append_history "set" "$act"
+      ;;
     set-abs:*)
       # HH:MM carries its own colon, so split in two steps: the time is the
       # first two fields, everything after is the action.
