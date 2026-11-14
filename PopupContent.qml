@@ -20,6 +20,19 @@ Column {
 
   spacing: Style.space(12)
 
+  // Wheel anywhere in the popup, not just on the ring: the event bubbles up
+  // from whatever is under the pointer, and this catches it.
+  WheelHandler {
+    enabled: content.wheelAdjusts
+    acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+    onWheel: function(event) {
+      var fine = (event.modifiers & Qt.ShiftModifier) !== 0
+      var step = event.angleDelta.y > 0 ? (fine ? 5 : 1) : (fine ? -5 : -1)
+      content.wheelStep(step, "plate")
+      event.accepted = true
+    }
+  }
+
   // The pieces Panel's IPC and diagnostics need from the layout.
   readonly property Item dialItem: dial
   readonly property Item heroItem: hero
@@ -32,12 +45,16 @@ Column {
 
   // Wheel over the plate: a notch is a minute, Shift five. The count is
   // there so a script (and a person) can prove the wheel reaches us.
+  // When the popup itself has to scroll (a long tray), the wheel belongs to
+  // the scroll; the dial's own handler still adjusts time.
+  property bool wheelAdjusts: true
   property int wheelEvents: 0
+  property string wheelSource: ""
 
-  function wheelOnDial(delta, fine) {
-    if (delta === 0) return
+  function wheelStep(step, source) {
+    if (!step) return
     wheelEvents += 1
-    var step = (delta > 0 ? 1 : -1) * (fine ? 5 : 1)
+    wheelSource = source || "?"
     host.customMinutes = Math.max(1, Math.min(720, Math.round(host.customMinutes) + step))
   }
 
@@ -376,14 +393,6 @@ Column {
                   // The wheel is the fast path: a notch is a minute, Shift is
                   // five. On the dial, so the wheel still scrolls the popup
                   // when the tray makes it taller than the screen.
-                  WheelHandler {
-                    acceptedModifiers: Qt.NoModifier
-                    onWheel: function(event) { content.wheelOnDial(event.angleDelta.y, false) }
-                  }
-                  WheelHandler {
-                    acceptedModifiers: Qt.ShiftModifier
-                    onWheel: function(event) { content.wheelOnDial(event.angleDelta.y, true) }
-                  }
 
                   fraction: host.heroFraction
                   running: service.status !== "IDLE"

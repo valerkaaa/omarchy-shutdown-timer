@@ -677,7 +677,7 @@ Panel {
     }
 
     function debugWheelCount(): string {
-      return JSON.stringify({ events: popupContent.wheelEvents, minutes: Math.round(root.customMinutes) })
+      return JSON.stringify({ events: popupContent.wheelEvents, source: popupContent.wheelSource, minutes: Math.round(root.customMinutes) })
     }
 
     function debugGeom(): string {
@@ -1044,6 +1044,7 @@ Panel {
           host: root
           service: timerService
           width: parent.width
+          wheelAdjusts: popupContent.implicitHeight <= panelFlick.height
         }
       }
     }

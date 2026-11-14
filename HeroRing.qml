@@ -348,6 +348,7 @@ Item {
     anchors.fill: parent
     acceptedButtons: Qt.LeftButton
     preventStealing: true
+
     property bool active: false
     property bool wasDrag: false
     property real pressX: 0

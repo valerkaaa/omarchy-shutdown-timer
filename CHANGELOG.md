@@ -1,8 +1,12 @@
 ## v3 stage 14 — the wheel is the fast path
 
-- Wheel over the dial: a notch is a minute, Shift is five. It sits on the
-  dial rather than the whole plate so the wheel still scrolls the popup when
-  the tray makes it taller than the screen.
+- Wheel over the dial: a notch is a minute, Shift is five. `WheelHandler`
+  never received a single event in this window (proven: 431 events logged,
+  all from the bubbling path), so the wheel rides on a handler over the whole
+  popup, which catches what bubbles up from whatever is under the pointer.
+  The count is reported by `debugWheelCount()`.
+- When the popup has to scroll (a long tray), that handler steps aside and
+  the wheel scrolls the list again.
 - The wheel already worked on the bar icon (±5, Shift ±15) without opening
   the popup — that stays.
 - `+`/`-` (and `=`/`_`) on the keyboard do the same as a notch, next to the
