@@ -4,6 +4,8 @@
 
 # Shutdown Timer
 
+English · [Русский](README.ru.md) · [简体中文](README.zh.md) · [日本語](README.ja.md)
+
 **Shut down, reboot, suspend or hibernate on a countdown you can always cancel.**  
 The remaining time sits in the bar, a full-screen warning takes the last thirty
 seconds, and every surface — popup, overlay, notification, CLI — speaks the same
@@ -226,7 +228,6 @@ cd ~/.config/omarchy/plugins/honor.shutdown-timer
 | `batteryGuard` | `false` | Do not run the action on low battery. |
 | `batteryThreshold` | `20` | Low-battery threshold, percent. |
 | `waitForInhibitors` | `false` | Wait until inhibitors clear before firing. |
-| `tickSound` | `false` | Tick once per second inside the countdown. |
 | `reducedMotion` | `false` | Static icon, no progress-bar easing. |
 
 The **dry run** switch is not a setting but a file (`<state>/action-override`):
