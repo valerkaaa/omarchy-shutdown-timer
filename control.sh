@@ -33,6 +33,8 @@ OVERRIDE_FILE="$STATE_DIR/action-override"
 CONTROL_FILE="$STATE_DIR/control"
 FIFO="$STATE_DIR/wake"
 PID_FILE="$STATE_DIR/daemon.pid"
+# Замок — единственная надёжная улика жизни демона (pid-файл может устареть).
+LOCK_FILE="$STATE_DIR/daemon.lock"
 SETTINGS_FILE="$STATE_DIR/settings.json"
 HISTORY_FILE="$STATE_DIR/history.tsv"
 SCHEDULES_FILE="$STATE_DIR/schedules.tsv"
@@ -42,12 +44,47 @@ WEEKDAYS_EN=(Mon Tue Wed Thu Fri Sat Sun)
 
 # ---------- daemon lifecycle ----------
 
-is_running() {
-  [[ -f "$PID_FILE" ]] || return 1
+# Живость демона определяет блокировка, а не pid-файл.
+#
+# `kill -0` по pid из файла — недостаточная улика: демон, убитый SIGKILL, не
+# успевает убрать файл, а ядро со временем отдаёт этот номер чужому процессу
+# того же пользователя. Тогда `daemon-stop` убивал бы его — и чужие
+# несохранённые данные. Замок так ошибиться не может: его держит только живой
+# демон, и он единственный, кого можно убивать.
+proc_is_daemon() {
+  [[ -r "/proc/$1/cmdline" ]] || return 1
+  tr '\0' ' ' < "/proc/$1/cmdline" | grep -q "daemon.sh"
+}
+
+# pid процесса, который на самом деле держит замок (после падения демона
+# pid-файл может пропасть — тогда настоящий хозяин замка и есть демон).
+lock_holder() {
+  local p
+  for p in $(fuser "$LOCK_FILE" 2>/dev/null); do
+    proc_is_daemon "$p" && { printf '%s\n' "$p"; return 0; }
+  done
+  return 1
+}
+
+# pid живого демона; rc=1, если его нет. Устаревший или потерянный pid-файл
+# чинится здесь же, чтобы следующий вызов не спотыкался о ту же пустоту.
+daemon_pid() {
+  [[ -e "$LOCK_FILE" ]] || return 1
+  # Замок свободен — демона нет, а pid в файле устарел.
+  flock -n "$LOCK_FILE" -c true 2>/dev/null && return 1
+
   local pid
   pid=$(cat "$PID_FILE" 2>/dev/null || echo "")
-  [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null
+  if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null && proc_is_daemon "$pid"; then
+    printf '%s\n' "$pid"
+    return 0
+  fi
+  pid=$(lock_holder) || return 1
+  printf '%s\n' "$pid" > "$PID_FILE"
+  printf '%s\n' "$pid"
 }
+
+is_running() { daemon_pid >/dev/null 2>&1; }
 
 ensure_daemon() {
   if ! is_running; then
@@ -63,12 +100,14 @@ ensure_daemon() {
 }
 
 daemon_stop() {
-  if is_running; then
-    local pid
-    pid=$(cat "$PID_FILE")
+  local pid
+  if pid=$(daemon_pid); then
     kill "$pid" 2>/dev/null || true
     echo "daemon stopped (pid $pid)"
   else
+    # Устаревший номер не должен пережить демона: иначе он же станет уликой
+    # против чужого процесса при следующей проверке.
+    rm -f "$PID_FILE" 2>/dev/null || true
     echo "daemon not running"
   fi
 }

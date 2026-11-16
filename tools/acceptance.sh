@@ -14,16 +14,41 @@ check(){ if eval "$1" >/dev/null 2>&1; then ok "$2"; else bad "$2"; fi; }
 echo "== §15 acceptance checks =="
 
 # 1. widget visible, correct slot, no jumping.
-# An idle widget must take exactly one icon slot (27 px) so it lines up with
-# its neighbours; the wider slot (63 px) only exists while the label is up.
-geo=$(omarchy-shell shell debugBarGeometry 2>/dev/null | python3 -c "
-import sys,json
-for it in json.load(sys.stdin):
-    if 'shutdown' in it.get('id',''): print(it['visible'], it['width'], it['height'], it['section'])")
-if [[ "$geo" == "True 27 26 "* || "$geo" == "True 63 26 "* || "$geo" == "True 66 26 "* ]]; then
-  ok "widget visible, slot 27 px idle / 63–66 px with label (11 px figure) ($geo)"
+# An idle widget must take exactly one icon slot so it lines up with its
+# neighbours; the wider slot only exists while the label is up. Both sizes
+# follow the bar's font, and the font is a user setting — so the reference is a
+# neighbouring icon widget, not a hardcoded number (27 px was base-size 12).
+# Start from a still widget: the caption is only up while a timer runs, and a
+# leftover timer from an earlier check would be measured as the idle slot.
+bash control.sh cancel >/dev/null 2>&1
+bash control.sh override echo >/dev/null 2>&1
+sleep 2
+read -r vis idle h sec ref <<< "$(omarchy-shell shell debugBarGeometry 2>/dev/null | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+mine = next((i for i in d if i.get('id') == 'honor.shutdown-timer'), None)
+ref = next((i for i in d if i.get('id') == 'omarchy.bluetooth'), None)
+if mine and ref:
+    print(mine['visible'], mine['width'], mine['height'], mine['section'], ref['width'])")"
+if [[ "${vis:-}" == "True" && -n "${idle:-}" && "${idle}" == "${ref:-x}" ]]; then
+  ok "widget visible, idle slot ${idle} px = the bar's icon slot (neighbour ${ref} px, ${sec} section)"
 else
-  bad "widget slot: $geo"
+  bad "widget slot: idle ${idle:-?} px vs neighbour ${ref:-?} px, visible ${vis:-?}"
+fi
+
+# the caption adds one short text run and nothing else
+bash control.sh override echo >/dev/null 2>&1
+bash control.sh set 30 >/dev/null 2>&1
+sleep 2.5
+lab=$(omarchy-shell shell debugBarGeometry 2>/dev/null | python3 -c "
+import sys, json
+for it in json.load(sys.stdin):
+    if it.get('id') == 'honor.shutdown-timer': print(it['width'])")
+bash control.sh cancel >/dev/null 2>&1
+if [[ -n "${lab:-}" && -n "${idle:-}" && "$lab" -gt "$idle" && $((lab - idle)) -ge 20 && $((lab - idle)) -le 60 ]]; then
+  ok "caption state ${lab} px: +$((lab - idle)) px of text, then back to the slot"
+else
+  bad "caption slot: idle ${idle:-?} px, with caption ${lab:-?} px"
 fi
 
 # 2. icon: own SVG, both themes, 16 px

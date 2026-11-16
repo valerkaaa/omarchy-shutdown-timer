@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.0.1 — the lock decides
+
+- `daemon-stop` no longer trusts the pid file. A daemon killed with SIGKILL
+  leaves its number behind, and the kernel eventually hands that number to
+  another program of the same user — which `daemon-stop` then signalled. Now
+  the process that holds the daemon's `flock` is the only one that gets a
+  signal; a stale or missing pid file is repaired from the lock holder instead
+  of being believed. `tests/test_stale_pid.sh` reproduces the old kill and
+  fails on the old code.
+
 ## 3.0.0 — the dial
 
 The popup is an instrument now: a ring you drag, scroll or type into, with the

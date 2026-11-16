@@ -32,11 +32,19 @@ trap cleanup EXIT
 "${CTL[@]}" override echo >/dev/null 2>&1
 
 # ---- the dial's angle map: top 0, right 180, bottom 360, left 540 of 720
-got=$("${IPC[@]}" debugDial "100,0" | json "['minutes']")
-[[ "$got" == "0" ]] && ok "dial: 12 o'clock is 0 min" || bad "dial top gave '$got'"
-got=$("${IPC[@]}" debugDial "200,100" | json "['minutes']")
+# Точки считаются от центра диска: попап бывает разной ширины, и зашитые
+# координаты попадали бы в край или за него (диск тогда клампит угол).
+read -r DW DH <<< "$("${IPC[@]}" debugDial "0,0" | python3 -c "import sys,json;d=json.load(sys.stdin);print(d['w'],d['h'])" 2>/dev/null)"
+CX=$((DW / 2)); CY=$((DH / 2)); R=$((DW * 45 / 100))
+[[ "$DW" -gt 0 ]] && ok "dial: geometry ${DW}x${DH}" || bad "dial: geometry not reported"
+
+# Верх — точка замыкания шкалы: 0 и 120 сходятся в одном угле, и какая из
+# двух величин выйдет, решает округление на пикселе. Оба ответа верны.
+got=$("${IPC[@]}" debugDial "$CX,$((CY - R))" | json "['minutes']")
+[[ "$got" == "0" || "$got" == "120" ]] && ok "dial: 12 o'clock is the wrap (0/120)" || bad "dial top gave '$got'"
+got=$("${IPC[@]}" debugDial "$((CX + R)),$CY" | json "['minutes']")
 [[ "$got" == "30" ]] && ok "dial: 3 o'clock is 30 min of 120" || bad "dial right gave '$got'"
-got=$("${IPC[@]}" debugDial "100,200" | json "['minutes']")
+got=$("${IPC[@]}" debugDial "$CX,$((CY + R))" | json "['minutes']")
 [[ "$got" == "60" ]] && ok "dial: 6 o'clock is 60 min of 120" || bad "dial bottom gave '$got'"
 
 # ---- the drag is relative: a quarter turn is +15 min, Shift a quarter of 12

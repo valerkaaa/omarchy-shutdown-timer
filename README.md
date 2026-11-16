@@ -260,7 +260,10 @@ State lives in `~/.local/state/omarchy/plugins/shutdown-timer/`: `state.json`,
 
 The daemon is a small bash process. `control.sh ensure` starts it after a crash;
 `Service.qml` restarts it if it is not there. A single `flock` guarantees one
-daemon — the pid file is only a hint, the lock is the truth.
+daemon — the pid file is only a hint, the lock is the truth. Stopping follows
+the same rule: `daemon-stop` signals the process that holds the lock, so a pid
+left behind by a killed daemon (and later reused by an unrelated program) is
+never mistaken for the daemon and never signalled.
 
 ### Robustness
 

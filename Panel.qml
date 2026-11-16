@@ -736,7 +736,14 @@ Panel {
       var y = Number(parts[1] || 0)
       try {
         var m = popupContent.minutesAt(x, y)
-        return JSON.stringify({ minutes: m, max: popupContent.scrubMax(), x: x, y: y, size: Math.round(popupContent.width) })
+        // w/h — размер самого диска: скрипт считает точку от центра, а не от
+        // угаданного числа (попап бывает разной ширины).
+        var d = popupContent.dialItem
+        return JSON.stringify({
+          minutes: m, max: popupContent.scrubMax(), x: x, y: y,
+          size: Math.round(popupContent.width),
+          w: Math.round(d.width), h: Math.round(d.height)
+        })
       } catch (e) {
         return JSON.stringify({ error: String(e) })
       }
