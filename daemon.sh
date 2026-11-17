@@ -740,6 +740,21 @@ while true; do
         else
           held_since=0
         fi
+        # The guards above take real time (pgrep, systemd-inhibit, battery). A
+        # cancel written during them was previously read only on the next tick,
+        # so it arrived after do_action had already fired. Read the channel and
+        # the state once more at the last moment, and re-evaluate instead of
+        # firing if anything changed.
+        drain_control
+        read_state
+        if [[ "$status" == "IDLE" ]]; then
+          log "cancel arrived during the final checks — not firing $local_action"
+          continue
+        fi
+        if [[ "$status" == "ACTIVE" ]] && (( target_time > EPOCHSECONDS )); then
+          log "timer changed during the final checks — re-evaluating"
+          continue
+        fi
         append_history "executed" "$local_action"
         log "firing $local_action"
         do_action "$local_action"
@@ -789,6 +804,18 @@ while true; do
           proc_since=0
         fi
         local_action=$(battery_guard_should_swap "$action")
+        # Same last-moment check as the ACTIVE branch: a cancel written while
+        # the process guard ran must not be outrun by the power action.
+        drain_control
+        read_state
+        if [[ "$status" == "IDLE" ]]; then
+          log "cancel arrived during the final checks — not firing $local_action"
+          continue
+        fi
+        if [[ "$status" == "ACTIVE" ]] && (( target_time > EPOCHSECONDS )); then
+          log "timer changed during the final checks — re-evaluating"
+          continue
+        fi
         append_history "executed" "$local_action"
         log "firing $local_action (from $status)"
         do_action "$local_action"

@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.0.2 — the cancel that arrives last
+
+- The countdown honoured a cancel only up to the control file's last read.
+  Between that read and the power action the daemon spends real time on the
+  battery, process and inhibitor guards, so a cancel written in that window sat
+  unread while the shutdown, reboot or suspend still ran. The channel and the
+  state are now read once more immediately before the action: a cancel makes the
+  daemon stay IDLE, and a re-armed timer makes it re-evaluate instead of firing.
+  `tests/test_cancel.sh` still passes, including the last-second case.
+
 ## 3.0.1 — the lock decides
 
 - `daemon-stop` no longer trusts the pid file. A daemon killed with SIGKILL
