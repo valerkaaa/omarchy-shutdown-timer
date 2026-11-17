@@ -11,6 +11,11 @@ ok()   { echo "  [x] $*"; pass=$((pass+1)); }
 bad()  { echo "  [ ] $*  <-- FAIL"; fail=$((fail+1)); }
 check(){ if eval "$1" >/dev/null 2>&1; then ok "$2"; else bad "$2"; fi; }
 
+# Every test's full output goes to one file: a red line in the summary is not
+# enough to tell a real defect from a flake, and the tail is all that survives.
+TEST_LOG="${TEST_LOG:-/tmp/shutdown-timer-acceptance-tests.log}"
+: > "$TEST_LOG"
+
 echo "== §15 acceptance checks =="
 
 # 1. widget visible, correct slot, no jumping.
@@ -62,6 +67,7 @@ n=$(ls assets/screenshots/dark/*.png 2>/dev/null | wc -l)
 # 4. cancel works from every state, incl. last second
 check "grep -q 'cancel in the last second' tests/test_cancel.sh" "cancel-from-every-state test exists"
 out=$(timeout 200 bash tests/test_cancel.sh 2>&1); rc=$?
+printf '%s\n' "$out" >> "$TEST_LOG"
 [[ $rc -eq 0 ]] && ok "test_cancel.sh green" || bad "test_cancel.sh red: $(echo "$out" | tail -1)"
 
 # 5. cancel closes the overlay itself; machine stays on — overlay wires cancel to control.sh
@@ -75,33 +81,42 @@ check "grep -q 'paused clock does not move' tests/test_state.sh" "pause/resume c
 
 # 8. absolute time and schedule incl. tomorrow rollover
 out=$(timeout 200 bash tests/test_absolute.sh 2>&1); rc=$?
-[[ $rc -eq 0 ]] && ok "test_absolute.sh green (incl. tomorrow)" || bad "test_absolute red"
+printf '%s\n' "$out" >> "$TEST_LOG"
+printf '%s\n' "$out" >> "$TEST_LOG"
+[[ $rc -eq 0 ]] && ok "test_absolute.sh green (incl. tomorrow)" || bad "test_absolute red: $(echo "$out" | grep FAIL | tail -1)"
 
 # 9. state survives kill -9 and shell restart
 out=$(timeout 100 bash tests/test_daemon.sh 2>&1); rc=$?
+printf '%s\n' "$out" >> "$TEST_LOG"
 [[ $rc -eq 0 ]] && ok "test_daemon.sh green (kill -9 recovery)" || bad "test_daemon red"
 
 # 10. sleep/wake does not lose the timer
 out=$(timeout 120 bash tests/test_sleep.sh 2>&1); rc=$?
+printf '%s\n' "$out" >> "$TEST_LOG"
 [[ $rc -eq 0 ]] && ok "test_sleep.sh green (suspend window)" || bad "test_sleep red"
 
 # 11. budgets of §11
 out=$(timeout 200 bash tests/test_perf.sh 2>&1); rc=$?
+printf '%s\n' "$out" >> "$TEST_LOG"
 [[ $rc -eq 0 ]] && ok "test_perf.sh green (budgets)" || bad "test_perf red"
 
 # 11b. malformed control input must not kill the daemon (control is a plain file)
 out=$(timeout 120 bash tests/test_input.sh 2>&1); rc=$?
+printf '%s\n' "$out" >> "$TEST_LOG"
 [[ $rc -eq 0 ]] && ok "test_input.sh green (bad input is rejected, daemon survives)" || bad "test_input red"
 
 out=$(timeout 120 bash tests/test_state_files.sh 2>&1); rc=$?
+printf '%s\n' "$out" >> "$TEST_LOG"
 [[ $rc -eq 0 ]] && ok "test_state_files.sh green (damaged state files are survived)" || bad "test_state_files red"
 out=$(timeout 180 bash tests/test_layout.sh 2>&1); rc=$?
+printf '%s\n' "$out" >> "$TEST_LOG"
 if [[ $rc -eq 0 ]]; then
   if [[ "$out" == *SKIP* ]]; then ok "test_layout.sh skipped (no shell)"; else ok "test_layout.sh green (axis, presets, no overflow)"; fi
 else
   bad "test_layout red: $(echo "$out" | grep FAIL | head -2 | tr '\n' ' ')"
 fi
 out=$(timeout 120 bash tests/test_gestures.sh 2>&1); rc=$?
+printf '%s\n' "$out" >> "$TEST_LOG"
 if [[ $rc -eq 0 ]]; then
   if [[ "$out" == *SKIP* ]]; then ok "test_gestures.sh skipped (no shell)"; else ok "test_gestures.sh green (dial, wheel, hold, confirm)"; fi
 else
@@ -113,9 +128,11 @@ out=$(timeout 550 bash tests/run_all.sh 2>&1 | tail -1)
 [[ "$out" == *"ALL GREEN"* ]] && ok "run_all.sh: ALL GREEN" || bad "suite: $out"
 check "bash -n daemon.sh && bash -n control.sh" "bash -n clean"
 
-# 13. no QML errors in the live log
+# 13. no QML errors in the live log — only OUR files count.
+# The shell log is shared with the stock panels, and a bare `Panel.qml:` pattern
+# matched Omarchy's own network panel (a binding loop there is not our bug).
 L=$(ls -t /run/user/1000/quickshell/by-id/*/log.qslog 2>/dev/null | head -1)
-if strings "$L" 2>/dev/null | grep -aqE '(shutdown|Panel|Overlay|Service|TimerIcon|Model)\.(qml|js):[0-9]+:[0-9]+:'; then
+if strings "$L" 2>/dev/null | grep -aqE 'honor\.shutdown-timer/[^ ]*\.(qml|js):[0-9]+:[0-9]+:'; then
   bad "QML errors in the shell log"
 else
   ok "shell log clean of QML errors"

@@ -1,5 +1,24 @@
 # Changelog
 
+## 3.0.3 — the wheel keeps up
+
+- Two quick notches of the wheel while a timer ran were counted from the same
+  stale remaining time, so the second one changed nothing: 30 -> 35 -> 35. The
+  wheel now continues from the value the widget itself set, as long as that
+  value is fresh and the daemon's target still matches it — a timer re-armed
+  elsewhere (a preset, the field, another widget) drops the fresh base and the
+  daemon is asked again. Found by the gesture test, which failed one run in
+  three on a loaded machine.
+- `tests/test_absolute.sh` waited a fixed 0.4 s for the daemon to apply a
+  command and then read the state; under load it read the previous target and
+  called a working daemon broken. It now waits for the effect.
+- `tools/acceptance.sh` kept only the last line of a failing test, which is not
+  enough to tell a defect from a flake — every test's full output now goes to
+  `/tmp/shutdown-timer-acceptance-tests.log`. Its QML check also matched
+  Omarchy's own `network/Panel.qml` binding loop; it is scoped to this plugin's
+  files now.
+
+
 ## 3.0.2 — the cancel that arrives last
 
 - The countdown honoured a cancel only up to the control file's last read.

@@ -66,8 +66,10 @@ after=$("${IPC[@]}" debugDrag 0 0 false | json "['minutes']")
 "${CTL[@]}" set 30 >/dev/null 2>&1; sleep 1
 got=$("${IPC[@]}" debugWheel 5 | json "['minutes']")
 [[ "$got" == "35" ]] && ok "wheel: +5 in IDLE -> 35" || bad "wheel +5 gave '$got'"
+got=$("${IPC[@]}" debugWheel 5 | json "['minutes']")
+[[ "$got" == "40" ]] && ok "wheel: a second quick notch adds again (35 -> 40)" || bad "wheel second notch gave '$got'"
 got=$("${IPC[@]}" debugWheel -15 | json "['minutes']")
-[[ "$got" == "20" ]] && ok "wheel: -15 in IDLE -> 20" || bad "wheel -15 gave '$got'"
+[[ "$got" == "25" ]] && ok "wheel: -15 -> 25" || bad "wheel -15 gave '$got'"
 "${CTL[@]}" set 30 >/dev/null 2>&1; sleep 1
 got=$("${IPC[@]}" debugWheel 10 | json "['minutes']")
 [[ "$got" == "40" ]] && ok "wheel: +10 while running -> 40" || bad "wheel running gave '$got'"

@@ -9,20 +9,31 @@ t_setup
 
 now_epoch() { date +%s; }
 
-# a time ~2 minutes ahead today
+# a time ~2 minutes ahead today.
+# Wait for the daemon to APPLY the command instead of trusting a fixed sleep:
+# on a loaded machine the state file lags, and the test then reads the previous
+# target (0) and calls a working daemon broken.
 future=$(date -d '+2 minutes' +%H:%M)
 t_send "set-abs:$future:poweroff"
+t_wait_for mode absolute 5 || t_fail "absolute mode was not applied"
 t_assert_eq "$(t_state mode)" "absolute" "absolute mode is recorded"
 target=$(t_state targetTime)
 now=$(now_epoch)
 delta=$((target - now))
-(( delta > 60 && delta <= 180 )) || t_fail "target delta=$delta for $future, want ~120"
+# '+2 minutes' truncates the seconds, so the target is 60–120 s ahead; the
+# lower bound has to admit exactly 60, which is a correct answer.
+(( delta >= 55 && delta <= 180 )) || t_fail "target delta=$delta for $future, want ~120"
 t_pass "future HH:MM lands ~2 min ahead ($delta s)"
 
 # a time ~1 hour in the past must roll to tomorrow
 past=$(date -d '-1 hour' +%H:%M)
+prev=$target
 t_send "set-abs:$past:poweroff"
-target=$(t_state targetTime)
+for _ in $(seq 1 25); do
+  target=$(t_state targetTime)
+  [[ "$target" != "$prev" ]] && break
+  sleep 0.2
+done
 now=$(now_epoch)
 delta=$((target - now))
 (( delta > 82000 && delta <= 90000 )) || t_fail "past HH:MM delta=$delta, want ~23h"
@@ -31,7 +42,9 @@ t_pass "past HH:MM rolls to tomorrow ($delta s)"
 # the countdown is recomputed from the wall clock, not a counter:
 # timeLeft must roughly equal target - now
 left=$(t_state timeLeft)
-[[ $(( left - delta )) -le 2 && $(( delta - left )) -le 2 ]] || t_fail "timeLeft=$left vs delta=$delta"
+# The daemon writes state on its own tick, so allow the lag of one tick plus
+# the read itself; the point is that timeLeft follows the wall clock at all.
+[[ $(( left - delta )) -le 3 && $(( delta - left )) -le 3 ]] || t_fail "timeLeft=$left vs delta=$delta"
 t_pass "timeLeft matches wall-clock target"
 
 t_send "cancel"

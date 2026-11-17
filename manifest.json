@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "honor.shutdown-timer",
   "name": "Shutdown Timer",
-  "version": "3.0.2",
+  "version": "3.0.3",
   "author": "honor",
   "license": "MIT",
   "description": "Schedule power off, reboot, suspend or hibernate: a dial you can drag, scroll or type into, a countdown overlay, schedules, guards and history.",

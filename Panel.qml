@@ -481,19 +481,37 @@ Panel {
   readonly property bool absTimeValid: absoluteTime.trim() === "" || /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(absoluteTime.trim())
   readonly property string absTimeError: timeModeAbsolute && !absTimeValid ? tr("error.badTime") : ""
 
+  // Прокрутка считает от того, что виджет выставил последним, если это было
+  // только что. timeLeft приходит из демона раз в refreshIntervalSec, поэтому
+  // два быстрых щелчка считались бы от одного и того же устаревшего остатка и
+  // второй щелчок пропадал (30 -> 35 -> 35). Окно свежести — интервал опроса
+  // плюс запас; после него база снова берётся из демона, чтобы не разойтись с
+  // ним, если таймер переставили из другого места.
+  property int wheelBase: -1
+  property double wheelBaseAt: 0
+  // Цель, которую создал наш же щелчок: если демон показывает другую, таймер
+  // переставили из другого места (пресет, поле, другой виджет) — и свежая база
+  // больше не наша, её надо забыть.
+  property double wheelTarget: 0
+
   function wheelAdjust(delta) {
-    var next
-    if (timerService.status === "IDLE") {
-      next = Math.max(1, Math.min(720, Math.round(customMinutes) + delta))
-      customMinutes = next
-    } else if (timerService.status === "ACTIVE" || timerService.status === "PAUSED") {
-      var left = Math.max(1, Math.round(timerService.timeLeft / 60))
-      next = Math.max(1, Math.min(720, left + delta))
-      timerService.setTimer(next, timerService.action || selectedAction)
-      customMinutes = next
-    } else {
-      return
-    }
+    var running = timerService.status === "ACTIVE" || timerService.status === "PAUSED"
+    if (timerService.status !== "IDLE" && !running) return
+
+    var now = Date.now()
+    var fresh = root.wheelBase > 0
+      && (now - root.wheelBaseAt) < (timerService.refreshIntervalSec * 1000 + 500)
+      && Math.abs(Number(timerService.targetTime) - root.wheelTarget) <= 2
+    var base = running
+      ? (fresh ? root.wheelBase : Math.max(1, Math.round(timerService.timeLeft / 60)))
+      : Math.round(customMinutes)
+
+    var next = Math.max(1, Math.min(720, base + delta))
+    if (running) timerService.setTimer(next, timerService.action || selectedAction)
+    customMinutes = next
+    root.wheelBase = next
+    root.wheelBaseAt = now
+    root.wheelTarget = Math.round(now / 1000) + next * 60
     root.wheelHint = root.tr("wheel.pending", String(next))
     wheelHintTimer.restart()
   }
