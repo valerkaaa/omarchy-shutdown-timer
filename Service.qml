@@ -116,8 +116,13 @@ Item {
   }
 
   // ---------- write settings for daemon ----------
-  // One place builds the JSON, and it reaches the file as base64: a webhook
-  // URL with a quote or a newline can no longer break out of the heredoc.
+  // One place builds the JSON, and it reaches the file through the writer's
+  // stdin — never through its command line. `/proc/<pid>/cmdline` is readable
+  // by every local account (no hidepid on a stock desktop) and this JSON holds
+  // the webhook URL, so the payload is not an argument any more. JSON.stringify
+  // never emits a raw newline, so the writer reads exactly one line and quits;
+  // the write lands on a temp file and is renamed, so the daemon never reads
+  // half a settings file.
   function settingsJson(overrides) {
     var o = overrides || {}
     return JSON.stringify({
@@ -140,20 +145,41 @@ Item {
   Process {
     id: writeSettingsProc
     running: false
+    stdinEnabled: true
     command: ["bash", "-c", "true"]
+    // A settings slider fires several writes in a row: one write at a time, and
+    // a change that arrives mid-write is folded into one more write afterwards.
+    property string pendingPayload: ""
+    property var pendingOverrides: null
+    property bool dirty: false
+    onStarted: {
+      if (pendingPayload !== "") {
+        write(pendingPayload + "\n")
+        pendingPayload = ""
+      }
+    }
+    onExited: {
+      if (dirty) { dirty = false; root.startSettingsWrite() }
+    }
   }
 
-  // The command, not the write: a test can run the same string and read the
-  // file back without touching the user's settings.
-  function settingsCommand(overrides) {
-    var payload = Qt.btoa(unescape(encodeURIComponent(settingsJson(overrides))))
-    return "mkdir -p '" + stateDir + "' && printf %s '" + payload
-           + "' | base64 -d > '" + stateDir + "/settings.json'"
-  }
-
-  function writeSettings() {
-    writeSettingsProc.command = ["bash", "-c", settingsCommand(null)]
+  function startSettingsWrite() {
+    writeSettingsProc.command = ["bash", "-c",
+      "umask 077 && mkdir -p '" + stateDir + "' && IFS= read -r payload"
+      + " && printf '%s\\n' \"$payload\" > '" + stateDir + "/settings.json.tmp'"
+      + " && mv -f '" + stateDir + "/settings.json.tmp' '" + stateDir + "/settings.json'"]
+    writeSettingsProc.pendingPayload = settingsJson(writeSettingsProc.pendingOverrides)
     writeSettingsProc.running = true
+  }
+
+  function writeSettings(overrides) {
+    if (writeSettingsProc.running) {
+      writeSettingsProc.pendingOverrides = overrides || null
+      writeSettingsProc.dirty = true
+      return
+    }
+    writeSettingsProc.pendingOverrides = overrides || null
+    startSettingsWrite()
   }
 
   // ---------- daemon lifecycle ----------

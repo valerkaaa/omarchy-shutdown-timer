@@ -11,6 +11,15 @@ ok()   { echo "  [x] $*"; pass=$((pass+1)); }
 bad()  { echo "  [ ] $*  <-- FAIL"; fail=$((fail+1)); }
 check(){ if eval "$1" >/dev/null 2>&1; then ok "$2"; else bad "$2"; fi; }
 
+# A run must never leave the machine in dry-run mode: the checks arm
+# `override echo`, and a run that forgets to disarm it turns the real timer into
+# a no-op — the next shutdown would only write a line to the log.
+cleanup_dry_run() {
+  bash control.sh cancel >/dev/null 2>&1 || true
+  bash control.sh override off >/dev/null 2>&1 || true
+}
+trap cleanup_dry_run EXIT INT TERM
+
 # Every test's full output goes to one file: a red line in the summary is not
 # enough to tell a real defect from a flake, and the tail is all that survives.
 TEST_LOG="${TEST_LOG:-/tmp/shutdown-timer-acceptance-tests.log}"

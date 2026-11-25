@@ -1,5 +1,42 @@
 # Changelog
 
+## 3.0.4 — the last second, and the token
+
+- A pause written while the daemon was inside its final checks was recorded as
+  PAUSED and then outrun by the action: the last-moment gate only knew cancel
+  (IDLE) and a re-armed timer (ACTIVE with a future target), so a PAUSED state
+  fell through to `do_action`. A pause now stops the firing the same way a
+  cancel does, in both the ACTIVE and the COUNTDOWN branch, and says so in the
+  log. `tests/test_pause_final_gate.sh` holds the daemon inside the checks with
+  a slow `pgrep` and fails on the old code (`IDLE` instead of `PAUSED`).
+- The webhook URL never becomes a command-line argument. It usually carries the
+  token of the service it posts to, and `/proc/<pid>/cmdline` is world-readable
+  on a stock Linux desktop, so `curl` now reads its whole request from a config
+  on stdin (`-K -`). A URL carrying a newline or another control character is
+  refused instead of being pasted into that config, where it would add
+  directives of its own. `tests/test_webhook_args.sh` reproduces the leak on the
+  old code and checks a real POST against a local server.
+- The settings writer in `Service.qml` no longer puts the settings JSON into
+  `bash -c`: the payload goes to the writer's stdin, and the write lands on a
+  temporary file that is renamed over `settings.json`, so a change during a
+  slider drag can neither leak the URL through argv nor leave the daemon
+  reading half a file.
+- The mm/ss boxes are read-only to Qt for life and take their digits from a key
+  handler. A writable `QQuickTextInput` makes Qt pull the *whole* clipboard on
+  every clipboard change (QTBUG-149610, fixed in Qt 6.12.1), and on 6.12 even
+  `setReadOnly(false)` performs that read — so a field that turns editable when
+  the panel opens still pays. Measured here on Qt 6.12.0 with a 100 MB
+  clipboard: writable field 407 MB peak RSS, read-only field 111 MB, and
+  "read-only until the panel opens" 409 MB, i.e. no better at the moment it
+  matters. Read-only for life: zero reads, and typing, the 720-minute clamp,
+  Tab and Backspace now live in `typeInto()`.
+  `tests/test_exact_fields.sh` drives the live panel with `wtype` and checks
+  all four, plus that both fields really are read-only.
+- `tools/acceptance.sh` disarms its own dry run. The checks arm
+  `override echo`, and an exiting run used to leave it behind: the next real
+  timer would only write a line to the log instead of powering off. A trap now
+  cancels the timer and turns the override off on every exit path.
+
 ## 3.0.3 — the wheel keeps up
 
 - Two quick notches of the wheel while a timer ran were counted from the same

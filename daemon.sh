@@ -185,15 +185,40 @@ processes_holding() {
 
 # A webhook fired after the action, never blocking the timer: curl runs in the
 # background with a five second cap.
+#
+# The URL usually carries the token of the service it posts to. Anything passed
+# as an argument is world-readable through /proc/<pid>/cmdline (no hidepid on a
+# stock Linux desktop), so the URL never becomes an argument: curl reads its
+# whole request from a config on stdin (-K -). A URL that cannot be one config
+# value — a newline or a control character would add directives of its own — is
+# refused instead of being pasted in.
 run_webhook() {
   local url
   url=$(settings_field webhookUrl "")
   [[ -n "$url" ]] || return 0
+  case "$url" in
+    http://*|https://*) ;;
+    *) log "webhook skipped: not an http(s) URL"; return 0 ;;
+  esac
+  # One quoted config value: a quote or a backslash would end it, a newline or
+  # a tab would start a directive of its own. Real webhook URLs carry none of
+  # them (they are percent-encoded), so refusing is cheaper than escaping.
+  case "$url" in
+    *'"'*|*\\*|*$'\n'*|*$'\r'*|*$'\t'*)
+      log "webhook skipped: URL has a character a curl config cannot hold"; return 0 ;;
+  esac
   command -v curl >/dev/null || { log "webhook skipped: no curl"; return 0; }
-  local body
+  local body esc_body
   body=$(printf '{"plugin":"shutdown-timer","action":"%s","at":%s}' "$1" "$(date +%s)")
-  curl -m 5 -s -o /dev/null -X POST -H 'Content-Type: application/json' \
-    -d "$body" "$url" >>"$LOG_FILE" 2>&1 &
+  # The body is built from a validated action name; escape the JSON quotes for
+  # curl's config parser.
+  esc_body=${body//\"/\\\"}
+  {
+    printf 'url = "%s"\n' "$url"
+    printf 'data = "%s"\n' "$esc_body"
+    printf 'header = "Content-Type: application/json"\n'
+    printf 'request = "POST"\nmax-time = 5\nsilent\noutput = "/dev/null"\n'
+  } | curl -K - >>"$LOG_FILE" 2>&1 &
   log "webhook sent for $1"
 }
 
@@ -608,6 +633,29 @@ drain_control() {
   rm -f "$CONTROL_FILE"
 }
 
+# The last thing between the guards and the power action. The guards above take
+# real time (pgrep, systemd-inhibit, battery), and a command written while they
+# ran has not been read yet — read the channel and the state once more, and let
+# a cancel, a pause or a re-armed timer win over a firing that is already in
+# flight. Returns 1 when the action must not happen.
+final_gate() { # local_action
+  drain_control
+  read_state
+  if [[ "$status" == "IDLE" ]]; then
+    log "cancel arrived during the final checks — not firing $1"
+    return 1
+  fi
+  if [[ "$status" == "PAUSED" ]]; then
+    log "pause arrived during the final checks — not firing $1"
+    return 1
+  fi
+  if [[ "$status" == "ACTIVE" ]] && (( target_time > EPOCHSECONDS )); then
+    log "timer changed during the final checks — re-evaluating"
+    return 1
+  fi
+  return 0
+}
+
 # ---------- startup ----------
 
 reload_settings
@@ -742,19 +790,9 @@ while true; do
         fi
         # The guards above take real time (pgrep, systemd-inhibit, battery). A
         # cancel written during them was previously read only on the next tick,
-        # so it arrived after do_action had already fired. Read the channel and
-        # the state once more at the last moment, and re-evaluate instead of
-        # firing if anything changed.
-        drain_control
-        read_state
-        if [[ "$status" == "IDLE" ]]; then
-          log "cancel arrived during the final checks — not firing $local_action"
-          continue
-        fi
-        if [[ "$status" == "ACTIVE" ]] && (( target_time > EPOCHSECONDS )); then
-          log "timer changed during the final checks — re-evaluating"
-          continue
-        fi
+        # so it arrived after do_action had already fired. final_gate() reads
+        # the channel and the state once more at the last moment.
+        final_gate "$local_action" || continue
         append_history "executed" "$local_action"
         log "firing $local_action"
         do_action "$local_action"
@@ -804,18 +842,10 @@ while true; do
           proc_since=0
         fi
         local_action=$(battery_guard_should_swap "$action")
-        # Same last-moment check as the ACTIVE branch: a cancel written while
-        # the process guard ran must not be outrun by the power action.
-        drain_control
-        read_state
-        if [[ "$status" == "IDLE" ]]; then
-          log "cancel arrived during the final checks — not firing $local_action"
-          continue
-        fi
-        if [[ "$status" == "ACTIVE" ]] && (( target_time > EPOCHSECONDS )); then
-          log "timer changed during the final checks — re-evaluating"
-          continue
-        fi
+        # Same last-moment gate as the ACTIVE branch: a cancel, a pause or a
+        # re-armed timer written while the process guard ran must not be outrun
+        # by the power action.
+        final_gate "$local_action" || continue
         append_history "executed" "$local_action"
         log "firing $local_action (from $status)"
         do_action "$local_action"

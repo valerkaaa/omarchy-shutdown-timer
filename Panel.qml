@@ -683,10 +683,12 @@ Panel {
       return JSON.stringify({ tray: root.trayOpen })
     }
 
-    // Proves the settings writer survives a hostile value: quotes, a newline,
-    // a heredoc terminator.
+    // Writes the given webhook URL through the real settings writer, which is
+    // what a hostile value has to survive: quotes, a newline, a heredoc
+    // terminator. The payload travels on stdin, so the command leaks nothing.
     function debugSetWebhook(url: string): string {
-      return timerService.settingsCommand({ webhookUrl: url })
+      timerService.writeSettings({ webhookUrl: url })
+      return JSON.stringify({ ok: true, bytes: String(url).length })
     }
 
     function debugDrag(fromDeg: string, toDeg: string, fine: string): string {
@@ -705,6 +707,12 @@ Panel {
     function debugFieldFocus(): string {
       popupContent.focusExact()
       return JSON.stringify({ focused: true })
+    }
+
+    // Where the keystrokes actually went: the exact-input boxes are read-only
+    // to Qt, so their text and focus have to be observable from a script.
+    function debugTexts(): string {
+      return popupContent.debugTexts()
     }
 
     // Exact input, provable from a script: the same parser the field uses.

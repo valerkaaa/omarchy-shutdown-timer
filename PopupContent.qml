@@ -99,10 +99,38 @@ Column {
   }
 
   // The two boxes: minutes × 60 + seconds. The colon is printed, never typed.
+  function debugTexts() {
+    return JSON.stringify({
+      mm: mmField.text, ss: ssField.text,
+      mmFocus: mmField.activeFocus, ssFocus: ssField.activeFocus,
+      mmReadOnly: mmField.readOnly, ssReadOnly: ssField.readOnly
+    })
+  }
+
   function debugBoxes(mm, ss) {
     mmField.text = String(mm)
     ssField.text = String(ss)
     submitBoxes()
+  }
+
+  // The mm/ss boxes are read-only to Qt on purpose. A writable QQuickTextInput
+  // pulls the whole clipboard on every clipboard change (QTBUG-149610), and on
+  // Qt 6.12 even setReadOnly(false) performs that read, so a field that turns
+  // editable when the panel opens still pays the full price. These stay
+  // read-only for life and take their digits from here: zero clipboard traffic.
+  function typeInto(field, event, maxLen, maxVal) {
+    if (event.key >= Qt.Key_0 && event.key <= Qt.Key_9) {
+      var next = field.text + String(event.key - Qt.Key_0)
+      if (field.text.length < maxLen && parseInt(next, 10) <= maxVal) {
+        field.text = next
+        field.cursorPosition = field.text.length
+      }
+      event.accepted = true
+    } else if (event.key === Qt.Key_Backspace) {
+      field.text = field.text.slice(0, Math.max(0, field.text.length - 1))
+      field.cursorPosition = field.text.length
+      event.accepted = true
+    }
   }
 
   function submitBoxes() {
@@ -505,6 +533,18 @@ Column {
                   placeholderText: String(Math.round(host.customMinutes))
                   validator: IntValidator { bottom: 0; top: 720 }
                   inputMethodHints: Qt.ImhDigitsOnly
+                  // Read-only to Qt for life: see typeInto(). Turning a field
+                  // editable is itself a clipboard read on Qt 6.12.
+                  readOnly: true
+                  Keys.onPressed: function(event) {
+                    if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                      content.submitBoxes(); event.accepted = true
+                    } else if (event.key === Qt.Key_Tab) {
+                      ssField.forceActiveFocus(); event.accepted = true
+                    } else {
+                      content.typeInto(mmField, event, 3, 720)
+                    }
+                  }
                   font.family: "monospace"
                   font.pixelSize: Style.font.body
                   color: host.popupText
@@ -536,6 +576,17 @@ Column {
                   placeholderText: "00"
                   validator: IntValidator { bottom: 0; top: 59 }
                   inputMethodHints: Qt.ImhDigitsOnly
+                  // Same as mmField: read-only to Qt, digits come from typeInto.
+                  readOnly: true
+                  Keys.onPressed: function(event) {
+                    if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                      content.submitBoxes(); event.accepted = true
+                    } else if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
+                      mmField.forceActiveFocus(); event.accepted = true
+                    } else {
+                      content.typeInto(ssField, event, 2, 59)
+                    }
+                  }
                   font.family: "monospace"
                   font.pixelSize: Style.font.body
                   color: host.popupText
